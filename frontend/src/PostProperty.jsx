@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 
 const PostProperty = ({ apiBase }) => {
   const [form, setForm] = useState({
@@ -100,3 +100,5 @@ const PostProperty = ({ apiBase }) => {
 };
 
 export default PostProperty;
+
+

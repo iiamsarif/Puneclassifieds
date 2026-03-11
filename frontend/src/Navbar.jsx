@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import logo from "./logo.png";
 
 const Navbar = ({ apiBase }) => {
   const [open, setOpen] = useState(false);
@@ -30,8 +31,14 @@ const Navbar = ({ apiBase }) => {
     <header className="navbar">
       <div className="navbar-inner">
         <NavLink to="/" className="logo" onClick={() => setOpen(false)}>
-          <span className="logo-mark">pc</span>
-          <span className="logo-text">PUneClass</span>
+          <img
+            className="logo-mark"
+            src={logo}
+            alt="PuneClassifieds"
+          />
+          <span className="logo-text">
+            Pune<span>Classifieds</span>
+          </span>
         </NavLink>
         <nav className={`nav-links ${open ? "open" : ""}`}>
           <NavLink to="/" onClick={() => setOpen(false)}>Home</NavLink>
@@ -66,7 +73,7 @@ const Navbar = ({ apiBase }) => {
               {profileOpen && (
                 <div className="profile-menu">
                   <p className="profile-name">{user?.name || "Community Member"}</p>
-                  <p className="profile-email">{user?.email || "user@puneclassifieds.com"}</p>
+                  <p className="profile-email">{user?.email || "user@PuneClassifieds.com"}</p>
                   <NavLink to="/my-posts" className="ghost-btn" onClick={() => setProfileOpen(false)}>
                     My Posts
                   </NavLink>
@@ -94,3 +101,5 @@ const Navbar = ({ apiBase }) => {
 };
 
 export default Navbar;
+
+

@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const AdminAccess = ({ apiBase }) => {
@@ -61,3 +61,5 @@ const AdminAccess = ({ apiBase }) => {
 };
 
 export default AdminAccess;
+
+

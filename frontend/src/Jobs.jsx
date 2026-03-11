@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 
 const Jobs = ({ apiBase }) => {
@@ -51,3 +51,5 @@ const Jobs = ({ apiBase }) => {
 };
 
 export default Jobs;
+
+

@@ -38,7 +38,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [status, setStatus] = useState("");
   const [active, setActive] = useState("dashboard");
   const [editPost, setEditPost] = useState(null);
-  const [editForm, setEditForm] = useState({ title: "", category: "", location: "", description: "", contactName: "", phone: "", imageData: "", userEmail: "" });
+  const [editForm, setEditForm] = useState({ title: "", category: "", location: "", description: "", contactName: "", phone: "", imageData: "", imageUrl: "", userEmail: "" });
   const [editUploader, setEditUploader] = useState({ name: "", email: "" });
   const [editOpen, setEditOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
@@ -50,6 +50,10 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [loading, setLoading] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [pdfReady, setPdfReady] = useState(true);
+  const [categoryFile, setCategoryFile] = useState(null);
+  const [newsImageFile, setNewsImageFile] = useState(null);
+  const [notePdfFile, setNotePdfFile] = useState(null);
+  const [editImageFile, setEditImageFile] = useState(null);
 
   const [pendingPage, setPendingPage] = useState(1);
   const [approvedPage, setApprovedPage] = useState(1);
@@ -290,13 +294,15 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       };
       setCategories((prev) => [tempItem, ...prev]);
       setCategoriesPage(1);
+      const formData = new FormData();
+      formData.append("name", categoryForm.name);
+      formData.append("description", categoryForm.description || "");
+      if (categoryForm.iconUrl.trim()) formData.append("iconUrl", categoryForm.iconUrl.trim());
+      if (categoryFile) formData.append("icon", categoryFile);
       const res = await fetch(`${apiBase}/api/categories`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ ...categoryForm, iconUrl: categoryForm.iconUrl.trim() })
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
       });
       const data = await safeJson(res);
       if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
@@ -305,6 +311,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         setCategories((prev) => prev.map((cat) => (cat._id === tempId ? data.item : cat)));
       }
       setCategoryForm({ name: "", description: "", iconUrl: "", iconData: "" });
+      setCategoryFile(null);
       void loadData(active);
     }, "Category added");
   };
@@ -317,6 +324,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       iconUrl: cat.iconUrl || "",
       iconData: cat.iconData || ""
     });
+    setCategoryFile(null);
     setCategoryEditOpen(true);
   };
 
@@ -326,13 +334,15 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       setCategories((prev) =>
         prev.map((cat) => (cat._id === editingCategory ? { ...cat, ...categoryForm } : cat))
       );
+      const formData = new FormData();
+      formData.append("name", categoryForm.name);
+      formData.append("description", categoryForm.description || "");
+      if (categoryForm.iconUrl.trim()) formData.append("iconUrl", categoryForm.iconUrl.trim());
+      if (categoryFile) formData.append("icon", categoryFile);
       const res = await fetch(`${apiBase}/api/categories/${editingCategory}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ ...categoryForm, iconUrl: categoryForm.iconUrl.trim() })
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
       });
       const data = await safeJson(res);
       if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
@@ -340,6 +350,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       setCategoryEditOpen(false);
       setEditingCategory(null);
       setCategoryForm({ name: "", description: "", iconUrl: "", iconData: "" });
+      setCategoryFile(null);
       clampPage(categories.length, categoriesPage, setCategoriesPage);
       void loadData(active);
     }, "Category updated");
@@ -374,13 +385,17 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       };
       setNewsList((prev) => [tempItem, ...prev]);
       setNewsPage(1);
+      const formData = new FormData();
+      formData.append("title", newsForm.title);
+      formData.append("category", newsForm.category);
+      formData.append("description", newsForm.description);
+      formData.append("date", newsForm.date);
+      if (newsForm.image.trim()) formData.append("image", newsForm.image.trim());
+      if (newsImageFile) formData.append("image", newsImageFile);
       const res = await fetch(`${apiBase}/api/news`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(newsForm)
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
       });
       const data = await safeJson(res);
       if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
@@ -389,6 +404,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         setNewsList((prev) => prev.map((item) => (item._id === tempId ? data.item : item)));
       }
       setNewsForm({ title: "", category: "", description: "", image: "", imageData: "", date: "" });
+      setNewsImageFile(null);
       void loadData(active);
     }, "News added");
   };
@@ -430,13 +446,17 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       };
       setNoteList((prev) => [tempItem, ...prev]);
       setNotesPage(1);
+      const formData = new FormData();
+      formData.append("title", noteForm.title);
+      formData.append("description", noteForm.description);
+      formData.append("category", noteForm.category);
+      formData.append("notificationDate", noteForm.notificationDate);
+      if (noteForm.pdfFile.trim()) formData.append("pdfFile", noteForm.pdfFile.trim());
+      if (notePdfFile) formData.append("pdf", notePdfFile);
       const res = await fetch(`${apiBase}/api/notifications`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(noteForm)
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
       });
       const data = await safeJson(res);
       if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
@@ -445,6 +465,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         setNoteList((prev) => prev.map((item) => (item._id === tempId ? data.item : item)));
       }
       setNoteForm({ title: "", description: "", category: "", pdfFile: "", pdfData: "", notificationDate: "" });
+      setNotePdfFile(null);
       setPdfReady(true);
       void loadData(active);
       return true;
@@ -481,37 +502,45 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   };
 
   const handleNewsImage = (file) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setNewsForm((prev) => ({ ...prev, imageData: reader.result }));
-    };
-    if (file) reader.readAsDataURL(file);
+    if (!file) {
+      setNewsImageFile(null);
+      setNewsForm((prev) => ({ ...prev, imageData: "" }));
+      return;
+    }
+    setNewsImageFile(file);
+    setNewsForm((prev) => ({ ...prev, imageData: URL.createObjectURL(file) }));
   };
 
   const handleCategoryIcon = (file) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setCategoryForm((prev) => ({ ...prev, iconData: reader.result, iconUrl: "" }));
-    };
-    if (file) reader.readAsDataURL(file);
+    if (!file) {
+      setCategoryFile(null);
+      setCategoryForm((prev) => ({ ...prev, iconData: "" }));
+      return;
+    }
+    setCategoryFile(file);
+    setCategoryForm((prev) => ({ ...prev, iconData: URL.createObjectURL(file), iconUrl: "" }));
   };
 
   const handlePdfUpload = (file) => {
     setPdfReady(false);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setNoteForm((prev) => ({ ...prev, pdfData: reader.result }));
+    if (!file) {
+      setNotePdfFile(null);
+      setNoteForm((prev) => ({ ...prev, pdfData: "" }));
       setPdfReady(true);
-    };
-    if (file) reader.readAsDataURL(file);
+      return;
+    }
+    setNotePdfFile(file);
+    setNoteForm((prev) => ({ ...prev, pdfData: file.name }));
+    setPdfReady(true);
   };
 
   const handleEditImage = (file) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setEditForm((prev) => ({ ...prev, imageData: reader.result }));
-    };
-    if (file) reader.readAsDataURL(file);
+    if (!file) {
+      setEditImageFile(null);
+      return;
+    }
+    setEditImageFile(file);
+    setEditForm((prev) => ({ ...prev, imageData: URL.createObjectURL(file), imageUrl: "" }));
   };
 
   const startEdit = async (post) => {
@@ -524,9 +553,11 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       contactName: post.contactName || "",
       phone: post.phone || "",
       imageData: post.imageData || "",
+      imageUrl: post.imageUrl || "",
       userEmail: post.userEmail || ""
     });
     setEditUploader({ name: post.contactName || "", email: post.userEmail || "" });
+    setEditImageFile(null);
     setEditOpen(true);
     setEditLoading(true);
     try {
@@ -542,6 +573,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         contactName: data.post.contactName || "",
         phone: data.post.phone || "",
         imageData: data.post.imageData || "",
+        imageUrl: data.post.imageUrl || "",
         userEmail: data.post.userEmail || ""
       });
       setEditUploader({ name: data.user?.name || "", email: data.user?.email || "" });
@@ -559,13 +591,20 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         ...prev,
         posts: prev.posts.map((item) => (item._id === editPost ? { ...item, ...editForm } : item))
       }));
+      const formData = new FormData();
+      formData.append("title", editForm.title);
+      formData.append("category", editForm.category);
+      formData.append("location", editForm.location || "");
+      formData.append("description", editForm.description);
+      formData.append("contactName", editForm.contactName);
+      formData.append("phone", editForm.phone);
+      formData.append("userEmail", editForm.userEmail || "");
+      if (editForm.imageUrl) formData.append("imageUrl", editForm.imageUrl);
+      if (editImageFile) formData.append("image", editImageFile);
       const res = await fetch(`${apiBase}/api/admin/posts/${editPost}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(editForm)
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to save changes.");
@@ -847,8 +886,8 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   accept="image/*"
                   onChange={(e) => handleEditImage(e.target.files[0])}
                 />
-                {editForm.imageData && (
-                  <img className="preview-image" src={editForm.imageData} alt="Preview" />
+                {(editForm.imageData || editForm.imageUrl) && (
+                  <img className="preview-image" src={editForm.imageData || editForm.imageUrl} alt="Preview" />
                 )}
                 <button className="primary-btn" type="submit">Save Changes</button>
               </form>
@@ -939,7 +978,10 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   type="text"
                   placeholder="Icon URL"
                   value={categoryForm.iconUrl}
-                  onChange={(e) => setCategoryForm({ ...categoryForm, iconUrl: e.target.value, iconData: "" })}
+                  onChange={(e) => {
+                    setCategoryFile(null);
+                    setCategoryForm({ ...categoryForm, iconUrl: e.target.value, iconData: "" });
+                  }}
                 />
                 <input
                   type="file"
@@ -988,7 +1030,10 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   type="text"
                   placeholder="Icon URL"
                   value={categoryForm.iconUrl}
-                  onChange={(e) => setCategoryForm({ ...categoryForm, iconUrl: e.target.value, iconData: "" })}
+                  onChange={(e) => {
+                    setCategoryFile(null);
+                    setCategoryForm({ ...categoryForm, iconUrl: e.target.value, iconData: "" });
+                  }}
                 />
                 <input
                   type="file"
@@ -1066,7 +1111,10 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   type="text"
                   placeholder="Image URL"
                   value={newsForm.image}
-                  onChange={(e) => setNewsForm({ ...newsForm, image: e.target.value })}
+                  onChange={(e) => {
+                    setNewsImageFile(null);
+                    setNewsForm({ ...newsForm, image: e.target.value, imageData: "" });
+                  }}
                 />
                 <input
                   type="file"
@@ -1146,7 +1194,10 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   type="text"
                   placeholder="PDF URL"
                   value={noteForm.pdfFile}
-                  onChange={(e) => setNoteForm({ ...noteForm, pdfFile: e.target.value })}
+                  onChange={(e) => {
+                    setNotePdfFile(null);
+                    setNoteForm({ ...noteForm, pdfFile: e.target.value, pdfData: "" });
+                  }}
                 />
                 <input
                   type="file"
@@ -1193,3 +1244,5 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
 };
 
 export default AdminPanel;
+
+

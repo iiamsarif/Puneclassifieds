@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const Signup = ({ apiBase }) => {
@@ -41,7 +41,7 @@ const Signup = ({ apiBase }) => {
         <div className="auth-intro">
           <div className="auth-logo">pc</div>
           <div className="auth-welcome">Create Your Account</div>
-          <div className="auth-subtext">Join PUneClass and access premium community listings.</div>
+          <div className="auth-subtext">Join PuneClassifieds and access premium community listings.</div>
         </div>
         <div className="section-head-block">
           <h1>Sign Up</h1>
@@ -90,3 +90,5 @@ const Signup = ({ apiBase }) => {
 };
 
 export default Signup;
+
+

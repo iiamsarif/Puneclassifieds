@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const PostService = ({ apiBase }) => {
   const [categories, setCategories] = useState([]);
@@ -9,10 +9,10 @@ const PostService = ({ apiBase }) => {
     description: "",
     contactName: "",
     phone: "",
-    imageData: ""
+    imagePreview: ""
   });
   const [status, setStatus] = useState("");
-  const [imageReady, setImageReady] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
 
   useEffect(() => {
     fetch(`${apiBase}/api/categories`)
@@ -22,37 +22,40 @@ const PostService = ({ apiBase }) => {
   }, [apiBase]);
 
   const handleImage = (file) => {
-    setImageReady(false);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setForm((prev) => ({ ...prev, imageData: reader.result }));
-      setImageReady(true);
-    };
-    if (file) reader.readAsDataURL(file);
+    if (!file) {
+      setImageFile(null);
+      setForm((prev) => ({ ...prev, imagePreview: "" }));
+      return;
+    }
+    setImageFile(file);
+    setForm((prev) => ({ ...prev, imagePreview: URL.createObjectURL(file) }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus("");
-    if (!form.imageData) {
-      setStatus("Please wait for the image to finish loading.");
-      return;
-    }
     try {
       const token = localStorage.getItem("token");
+      const formData = new FormData();
+      formData.append("title", form.title);
+      formData.append("category", form.category);
+      formData.append("location", form.location || "");
+      formData.append("description", form.description);
+      formData.append("contactName", form.contactName);
+      formData.append("phone", form.phone);
+      if (imageFile) formData.append("image", imageFile);
       const res = await fetch(`${apiBase}/api/posts`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(form)
+        body: formData
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Submission failed");
       setStatus("Submitted. Awaiting admin approval.");
-      setForm({ title: "", category: "", location: "", description: "", contactName: "", phone: "", imageData: "" });
-      setImageReady(false);
+      setForm({ title: "", category: "", location: "", description: "", contactName: "", phone: "", imagePreview: "" });
+      setImageFile(null);
     } catch (err) {
       setStatus(err.message);
     }
@@ -117,8 +120,8 @@ const PostService = ({ apiBase }) => {
             onChange={(e) => handleImage(e.target.files[0])}
             required
           />
-          {form.imageData && (
-            <img className="preview-image" src={form.imageData} alt="Preview" />
+          {form.imagePreview && (
+            <img className="preview-image" src={form.imagePreview} alt="Preview" />
           )}
           <button className="primary-btn" type="submit">Submit Listing</button>
           {status && <p className="success">{status}</p>}
@@ -129,3 +132,5 @@ const PostService = ({ apiBase }) => {
 };
 
 export default PostService;
+
+

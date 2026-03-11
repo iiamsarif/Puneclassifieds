@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 
 const Footer = ({ apiBase }) => {
-  const [contactEmail, setContactEmail] = useState("support@puneclassifieds.com");
+  const [contactEmail, setContactEmail] = useState("support@PuneClassifieds.com");
 
   useEffect(() => {
     const load = async () => {
@@ -20,7 +20,7 @@ const Footer = ({ apiBase }) => {
     <footer className="footer">
       <div className="footer-inner">
         <div>
-          <div className="footer-brand">PUneClass</div>
+          <div className="footer-brand">PuneClassifieds</div>
           <p className="footer-text">
             A premium community marketplace for verified local news, listings, and civic updates.
           </p>
@@ -34,7 +34,7 @@ const Footer = ({ apiBase }) => {
         </div>
         <div className="footer-meta">
           <p>Contact: {contactEmail}</p>
-          <p>© 2026 PUneClass. All rights reserved.</p>
+          <p>© 2026 PuneClassifieds. All rights reserved.</p>
         </div>
       </div>
     </footer>
@@ -42,3 +42,5 @@ const Footer = ({ apiBase }) => {
 };
 
 export default Footer;
+
+

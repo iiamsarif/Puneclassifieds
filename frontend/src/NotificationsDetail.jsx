@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 const NotificationsDetail = ({ apiBase }) => {
@@ -46,3 +46,5 @@ const NotificationsDetail = ({ apiBase }) => {
 };
 
 export default NotificationsDetail;
+
+

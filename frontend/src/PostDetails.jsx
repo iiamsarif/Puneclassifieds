@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 const fallbackImage = "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80";
@@ -29,7 +29,7 @@ const PostDetails = ({ apiBase }) => {
   return (
     <main className="page">
       <section className="post-details">
-        <img src={post.imageData || fallbackImage} alt={post.title} />
+        <img src={post.imageUrl || post.imageData || fallbackImage} alt={post.title} />
         <div className="post-info">
           <span className="badge">{post.category}</span>
           <h1>{post.title}</h1>
@@ -50,3 +50,5 @@ const PostDetails = ({ apiBase }) => {
 };
 
 export default PostDetails;
+
+

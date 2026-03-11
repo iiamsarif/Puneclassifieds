@@ -20,11 +20,11 @@ const Contact = ({ apiBase }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const subject = encodeURIComponent("PUneClass Contact Request");
+    const subject = encodeURIComponent("PuneClassifieds Contact Request");
     const body = encodeURIComponent(
       `Name: ${form.name}\nEmail: ${form.email}\n\nMessage:\n${form.message}`
     );
-    const targetEmail = contactEmail || "support@puneclassifieds.com";
+    const targetEmail = contactEmail || "support@PuneClassifieds.com";
     window.location.href = `mailto:${targetEmail}?subject=${subject}&body=${body}`;
     setSent(true);
   };
@@ -70,3 +70,5 @@ const Contact = ({ apiBase }) => {
 };
 
 export default Contact;
+
+

@@ -152,11 +152,11 @@ const Posts = ({ apiBase }) => {
       <section className="grid">
         {posts.map((post) => (
           <article key={post._id} className="card media-card">
-            <img src={post.imageData || fallbackImage} alt={post.title} loading="lazy" />
+            <img src={post.imageUrl || post.imageData || fallbackImage} alt={post.title} loading="lazy" />
             <div>
               <span className="badge">{post.category}</span>
               <h4>{post.title}</h4>
-              <p>{post.description}</p>
+              <p className="clamp-2">{post.description}</p>
               {post.location && <p className="muted">Location: {post.location}</p>}
               <p className="muted">Posted by: {post.userEmail || "Community Member"}</p>
               <button className="ghost-btn" onClick={() => navigate(`/posts/${post._id}`)}>
@@ -186,3 +186,5 @@ const Posts = ({ apiBase }) => {
 };
 
 export default Posts;
+
+

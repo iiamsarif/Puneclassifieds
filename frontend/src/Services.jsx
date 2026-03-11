@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const Services = ({ apiBase }) => {
   const [categories, setCategories] = useState([]);
@@ -59,3 +59,5 @@ const Services = ({ apiBase }) => {
 };
 
 export default Services;
+
+

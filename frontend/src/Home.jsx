@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 
 const fallbackHero = "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80";
@@ -11,9 +11,11 @@ const Home = ({ apiBase }) => {
   const [posts, setPosts] = useState([]);
   const [heroImage, setHeroImage] = useState("");
   const [stats, setStats] = useState({ citizens: 0, listings: 0, updates: 0, satisfaction: 0 });
+  const [statsStarted, setStatsStarted] = useState(false);
+  const statsRef = useRef(null);
+  const cleanText = (value) => (value || '').replace(/\\r?\\n/g, ' ').trim();
   const navigate = useNavigate();
   const location = useLocation();
-
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -26,13 +28,11 @@ const Home = ({ apiBase }) => {
           fetch(`${apiBase}/api/settings/web`).then((r) => r.json())
         ]);
         if (!mounted) return;
-        setNews(n);
-        setNotifications(g);
-        setCategories(c);
-        setPosts(p.items || []);
-        if (settings?.heroImage) {
-          setHeroImage(settings.heroImage);
-        }
+        setNews(Array.isArray(n) ? n : []);
+        setNotifications(Array.isArray(g) ? g : []);
+        setCategories(Array.isArray(c) ? c : []);
+        setPosts(p?.items || []);
+        setHeroImage(settings?.heroImage || "");
       } catch (err) {
         console.error(err);
       }
@@ -49,13 +49,7 @@ const Home = ({ apiBase }) => {
   }, [apiBase]);
 
   useEffect(() => {
-    if (location.hash === "#categories") {
-      const el = document.getElementById("categories");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [location.hash]);
-
-  useEffect(() => {
+    if (!statsStarted) return;
     const targets = { citizens: 12000, listings: 3500, updates: 580, satisfaction: 92 };
     const start = performance.now();
     const duration = 1600;
@@ -72,6 +66,22 @@ const Home = ({ apiBase }) => {
     };
     const raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
+  }, [statsStarted]);
+
+  useEffect(() => {
+    const el = statsRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setStatsStarted(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.3 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   const searchResults = useMemo(() => {
@@ -96,7 +106,7 @@ const Home = ({ apiBase }) => {
             <div className="hero-tag section-label">Trusted Community Marketplace</div>
             <h1 className="hero-title">Discover verified local news, listings, and opportunities in Pune.</h1>
             <p className="hero-subtitle">
-              PUneClass is a premium civic portal where citizens explore government updates,
+              PuneClassifieds is a premium civic portal where citizens explore government updates,
               post community services, and access curated listings with confidence.
             </p>
             <div className="hero-actions">
@@ -189,11 +199,12 @@ const Home = ({ apiBase }) => {
               <div className="search-results">
                 {searchResults.map((item) => (
                   <div key={item._id || item.title} className="card media-card">
-                    {item.imageData && (
-                      <img src={item.imageData} alt={item.title} loading="lazy" />
+                    {(item.imageUrl || item.imageData) && (
+                      <img src={item.imageUrl || item.imageData} alt={item.title} loading="lazy" />
                     )}
                     <div>
                       <h4>{item.title || item.name}</h4>
+                      <p className="clamp-2">{cleanText(item.description)}</p>
                       {item.location && <p className="muted">Location: {item.location}</p>}
                       <NavLink className="ghost-btn" to={`/posts/${item._id}`}>Reach Out</NavLink>
                     </div>
@@ -217,11 +228,11 @@ const Home = ({ apiBase }) => {
           <div className="grid featured-grid">
             {posts.slice(0, 15).map((item) => (
               <article key={item._id} className="card media-card featured-card">
-                <img src={item.imageData || fallbackHero} alt={item.title} loading="lazy" />
+                <img src={item.imageUrl || item.imageData || fallbackHero} alt={item.title} loading="lazy" />
                 <div>
                   <span className="badge">{item.category}</span>
                   <h4>{item.title}</h4>
-                  <p>{item.description}</p>
+                  <p className="clamp-2">{cleanText(item.description)}</p>
                   {item.location && <p className="muted">Location: {item.location}</p>}
                   <NavLink className="ghost-btn" to={`/posts/${item._id}`}>Reach Out</NavLink>
                 </div>
@@ -252,7 +263,7 @@ const Home = ({ apiBase }) => {
                 <div>
                   <span className="badge">{item.category}</span>
                   <h4>{item.title}</h4>
-                  <p>{item.description}</p>
+                  <p className="clamp-2">{cleanText(item.description)}</p>
                 </div>
               </NavLink>
             ))}
@@ -274,7 +285,7 @@ const Home = ({ apiBase }) => {
               <NavLink key={item._id} to={`/notifications/${item._id}`} className="card">
                 <span className="badge">{item.category}</span>
                 <h4>{item.title}</h4>
-                <p>{item.description}</p>
+                <p className="clamp-2">{cleanText(item.description)}</p>
               </NavLink>
             ))}
           </div>
@@ -316,7 +327,7 @@ const Home = ({ apiBase }) => {
           <div className="section-head">
             <div>
               <div className="section-label">WHY US</div>
-              <h2>Why Use PUneClass</h2>
+              <h2>Why Use PuneClassifieds</h2>
             </div>
             <p>Minimal, curated, and trusted community updates.</p>
           </div>
@@ -352,103 +363,107 @@ const Home = ({ apiBase }) => {
         </div>
       </section>
 
-      <section className="section section-light">
+      <section className="section section-light stats-process-section" ref={statsRef}>
         <div className="container">
-          <div className="section-head">
-            <div className="section-label">STATS</div>
-          
-          </div>
-       
-          <div className="stats-grid">
-            <div className="card">
+          <div className="stats-strip">
+            <div className="stat-item">
               <div className="stat-number">{(stats.citizens / 1000).toFixed(1)}k+</div>
-              <p>Active citizens</p>
+              <p>Active citizens exploring verified updates daily.</p>
             </div>
-            <div className="card">
+            <div className="stat-item">
               <div className="stat-number">{(stats.listings / 1000).toFixed(1)}k</div>
-              <p>Verified listings</p>
+              <p>Approved listings across services and opportunities.</p>
             </div>
-            <div className="card">
+            <div className="stat-item">
               <div className="stat-number">{stats.updates}</div>
-              <p>Weekly updates</p>
+              <p>Weekly community updates and public notices.</p>
             </div>
-            <div className="card">
+            <div className="stat-item">
               <div className="stat-number">{stats.satisfaction}%</div>
-              <p>Satisfaction score</p>
+              <p>Resident satisfaction with verified information.</p>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section className="section">
-        <div className="container">
-          <div className="section-head">
+          <div className="process-block">
             <div className="section-label">PROCESS</div>
-            <h2>How It Works</h2>
-          </div>
-          <div className="section-visual align-left">
-            <img
-              src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1400&q=80"
-              alt="Process"
-              loading="lazy"
-            />
-          </div>
-          <div className="services-grid">
-            <div className="card">
-              <div className="service-number">01</div>
-              <h4>Create Account</h4>
-              <p>Sign up securely with your email and verify instantly.</p>
-            </div>
-            <div className="card">
-              <div className="service-number">02</div>
-              <h4>Post Service</h4>
-              <p>Submit listings with categories and images.</p>
-            </div>
-            <div className="card">
-              <div className="service-number">03</div>
-              <h4>Get Approved</h4>
-              <p>Admins review listings before they go live.</p>
-            </div>
-            <div className="card">
-              <div className="service-number">04</div>
-              <h4>Connect</h4>
-              <p>Reach out to verified providers with confidence.</p>
+            <h2>A calm four-step workflow that keeps community content trusted.</h2>
+            <div className="process-line">
+              <div className="process-step">
+                <span>01</span>
+                <h4>Create Account</h4>
+                <p>Sign up securely and build your citizen profile.</p>
+              </div>
+              <div className="process-step">
+                <span>02</span>
+                <h4>Submit Listing</h4>
+                <p>Post services, jobs, or property listings with details.</p>
+              </div>
+              <div className="process-step">
+                <span>03</span>
+                <h4>Admin Review</h4>
+                <p>Every submission is checked for clarity and accuracy.</p>
+              </div>
+              <div className="process-step">
+                <span>04</span>
+                <h4>Connect Locally</h4>
+                <p>Reach trusted providers with verified contact info.</p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="section section-light">
+      <section className="section testimonials-section">
         <div className="container">
-          <div className="section-head">
-            <div className="section-label">TESTIMONIALS</div>
-            <h2>Community Testimonials</h2>
+          <div className="trusted-strip">
+            <div className="section-label">TRUSTED BY</div>
+            <h2>Selected civic teams, service networks, and local partners.</h2>
+            <div className="trusted-logos">
+              <div className="trusted-track">
+                <span>PUNE COUNCIL</span>
+                <span>URBAN CARE</span>
+                <span>CIVIC CONNECT</span>
+                <span>NEIGHBOR HOUSING</span>
+                <span>PUBLIC SAFETY</span>
+                <span>COMMUNITY HUB</span>
+                <span>PUNE COUNCIL</span>
+                <span>URBAN CARE</span>
+                <span>CIVIC CONNECT</span>
+                <span>NEIGHBOR HOUSING</span>
+                <span>PUBLIC SAFETY</span>
+                <span>COMMUNITY HUB</span>
+              </div>
+            </div>
           </div>
-          <div className="testimonial-grid">
-            <div className="testimonial-card">
-              <div className="testimonial-avatar">AK</div>
-              <p>"Premium layout and verified listings make everything feel trustworthy."</p>
-              <span>- Aditi K.</span>
+
+          <div className="testimonial-elegant">
+            <div>
+              <div className="section-label">TESTIMONIALS</div>
+              <h2>What residents value most is the clarity and trust of every listing.</h2>
             </div>
-            <div className="testimonial-card">
-              <div className="testimonial-avatar">RM</div>
-              <p>"Posted a service and got approved fast. Super smooth."</p>
-              <span>- Rahul M.</span>
-            </div>
-            <div className="testimonial-card">
-              <div className="testimonial-avatar">SP</div>
-              <p>"The government updates section keeps me informed daily."</p>
-              <span>- Sneha P.</span>
+            <div className="testimonial-grid">
+              <div className="testimonial-card">
+                <p>?The portal feels curated. I can trust the listings and notices I see.?</p>
+                <span>Aditi K. ? Kothrud</span>
+              </div>
+              <div className="testimonial-card">
+                <p>?Posting a service was smooth and approval was fast.?</p>
+                <span>Rahul M. ? Baner</span>
+              </div>
+              <div className="testimonial-card">
+                <p>?Government updates are concise and easy to download.?</p>
+                <span>Sneha P. ? Shivaji Nagar</span>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="section">
+      <section className="section section-light faq-section">
         <div className="container">
           <div className="section-head">
             <div className="section-label">FAQS</div>
-            <h2>Frequently Asked Questions</h2>
+            
           </div>
           <div className="faq-grid">
             <div className="card faq-card">
@@ -475,3 +490,17 @@ const Home = ({ apiBase }) => {
 };
 
 export default Home;
+
+
+
+
+
+
+
+
+
+
+
+
+
+

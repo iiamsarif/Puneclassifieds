@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const Login = ({ apiBase }) => {
@@ -31,7 +31,7 @@ const Login = ({ apiBase }) => {
         <div className="auth-intro">
           <div className="auth-logo">pc</div>
           <div className="auth-welcome">Welcome Back</div>
-          <div className="auth-subtext">Sign in to your PUneClass account.</div>
+          <div className="auth-subtext">Sign in to your PuneClassifieds account.</div>
         </div>
         <div className="section-head-block">
           <h1>Login</h1>
@@ -65,3 +65,5 @@ const Login = ({ apiBase }) => {
 };
 
 export default Login;
+
+

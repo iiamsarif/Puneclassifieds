@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 
 const fallbackImage = "https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&w=1200&q=80";
@@ -42,7 +42,7 @@ const Pets = ({ apiBase }) => {
             <div>
               <span className="badge">{item.breed}</span>
               <h4>{item.petName}</h4>
-              <p>{item.age} · {item.gender}</p>
+              <p>{item.age} � {item.gender}</p>
               {item.location && <p className="muted">Location: {item.location}</p>}
               <div className="contact-row">
                 <span>{item.contactPerson}</span>
@@ -57,3 +57,5 @@ const Pets = ({ apiBase }) => {
 };
 
 export default Pets;
+
+

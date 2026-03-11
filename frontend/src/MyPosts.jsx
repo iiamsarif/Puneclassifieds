@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const MyPosts = ({ apiBase }) => {
   const [posts, setPosts] = useState([]);
@@ -7,6 +7,7 @@ const MyPosts = ({ apiBase }) => {
   const [status, setStatus] = useState("");
   const [imageReady, setImageReady] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
   const [form, setForm] = useState({
     title: "",
     category: "",
@@ -14,7 +15,9 @@ const MyPosts = ({ apiBase }) => {
     description: "",
     contactName: "",
     phone: "",
-    imageData: ""
+    imageData: "",
+    imageUrl: "",
+    imagePreview: ""
   });
   const token = localStorage.getItem("token");
 
@@ -32,13 +35,14 @@ const MyPosts = ({ apiBase }) => {
   }, [apiBase]);
 
   const handleEditImage = (file) => {
-    setImageReady(false);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setForm((prev) => ({ ...prev, imageData: reader.result }));
-      setImageReady(true);
-    };
-    if (file) reader.readAsDataURL(file);
+    setImageReady(true);
+    if (!file) {
+      setImageFile(null);
+      setForm((prev) => ({ ...prev, imagePreview: "" }));
+      return;
+    }
+    setImageFile(file);
+    setForm((prev) => ({ ...prev, imagePreview: URL.createObjectURL(file), imageUrl: "" }));
   };
 
   const startEdit = (post) => {
@@ -50,8 +54,11 @@ const MyPosts = ({ apiBase }) => {
       description: post.description,
       contactName: post.contactName,
       phone: post.phone,
-      imageData: post.imageData || ""
+      imageData: post.imageData || "",
+      imageUrl: post.imageUrl || "",
+      imagePreview: ""
     });
+    setImageFile(null);
     setImageReady(true);
     setEditOpen(true);
   };
@@ -66,20 +73,32 @@ const MyPosts = ({ apiBase }) => {
     const editingId = editing;
     setSaving(true);
     try {
+      const formData = new FormData();
+      formData.append("title", form.title);
+      formData.append("category", form.category);
+      formData.append("location", form.location || "");
+      formData.append("description", form.description);
+      formData.append("contactName", form.contactName);
+      formData.append("phone", form.phone);
+      if (form.imageUrl) formData.append("imageUrl", form.imageUrl);
+      if (imageFile) formData.append("image", imageFile);
       const res = await fetch(`${apiBase}/api/posts/${editingId}`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(form)
+        body: formData
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Update failed");
       setEditing(null);
       setEditOpen(false);
       setStatus("Updated successfully.");
-      setPosts((prev) => prev.map((post) => (post._id === editingId ? { ...post, ...form } : post)));
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === editingId ? { ...post, ...form, imageUrl: form.imageUrl || post.imageUrl } : post
+        )
+      );
     } catch (err) {
       setStatus(err.message);
     } finally {
@@ -97,7 +116,7 @@ const MyPosts = ({ apiBase }) => {
         {posts.map((post) => (
           <div key={post._id} className="card">
             <h4>{post.title}</h4>
-            <p>{post.description}</p>
+            <p className="clamp-2">{post.description}</p>
             {post.location && <p className="muted">Location: {post.location}</p>}
             <p className="muted">Posted by: {post.userEmail || "You"}</p>
             <div className="action-row">
@@ -163,8 +182,8 @@ const MyPosts = ({ apiBase }) => {
                 accept="image/*"
                 onChange={(e) => handleEditImage(e.target.files[0])}
               />
-              {form.imageData && (
-                <img className="preview-image" src={form.imageData} alt="Preview" />
+              {(form.imagePreview || form.imageData || form.imageUrl) && (
+                <img className="preview-image" src={form.imagePreview || form.imageData || form.imageUrl} alt="Preview" />
               )}
               <button className="primary-btn" type="submit" disabled={saving}>
                 {saving ? "Saving..." : "Save Changes"}
@@ -187,3 +206,5 @@ const MyPosts = ({ apiBase }) => {
 };
 
 export default MyPosts;
+
+

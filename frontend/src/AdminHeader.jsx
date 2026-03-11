@@ -1,5 +1,6 @@
-﻿import React from "react";
+import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import logo from "./logo.png";
 
 const AdminHeader = ({ sidebarOpen, setSidebarOpen }) => {
   const navigate = useNavigate();
@@ -13,8 +14,14 @@ const AdminHeader = ({ sidebarOpen, setSidebarOpen }) => {
     <header className="admin-header">
       <div className="admin-header-inner">
         <NavLink to="/dashboard" className="admin-brand">
-          <span className="admin-mark">pc</span>
-          <span>PUneClass</span>
+          <img
+            className="admin-mark"
+            src={logo}
+            alt="PuneClassifieds"
+          />
+          <span className="admin-brand-text">
+            Pune<span>Classifieds</span>
+          </span>
         </NavLink>
         <div className="admin-header-actions">
           <button className="ghost-btn admin-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
@@ -30,3 +37,5 @@ const AdminHeader = ({ sidebarOpen, setSidebarOpen }) => {
 };
 
 export default AdminHeader;
+
+

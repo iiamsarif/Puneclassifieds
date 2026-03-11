@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 
 const PostJob = ({ apiBase }) => {
   const [form, setForm] = useState({
@@ -84,3 +84,5 @@ const PostJob = ({ apiBase }) => {
 };
 
 export default PostJob;
+
+
