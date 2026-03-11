@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 
 const fallbackHero = "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80";
@@ -356,15 +356,9 @@ const Home = ({ apiBase }) => {
         <div className="container">
           <div className="section-head">
             <div className="section-label">STATS</div>
-            <h2>User Statistics</h2>
+          
           </div>
-          <div className="section-visual align-right">
-            <img
-              src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1400&q=80"
-              alt="Stats"
-              loading="lazy"
-            />
-          </div>
+       
           <div className="stats-grid">
             <div className="card">
               <div className="stat-number">{(stats.citizens / 1000).toFixed(1)}k+</div>
