@@ -34,6 +34,7 @@ const PostDetails = ({ apiBase }) => {
           <span className="badge">{post.category}</span>
           <h1>{post.title}</h1>
           <p>{post.description}</p>
+          {post.location && <p className="muted">Location: {post.location}</p>}
           <p className="muted">Posted by: {post.userEmail || "Community Member"}</p>
           <div className="contact-row">
             <span>{post.contactName || "Community Desk"}</span>

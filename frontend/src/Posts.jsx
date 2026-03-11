@@ -8,9 +8,49 @@ const useQuery = () => new URLSearchParams(useLocation().search);
 const Posts = ({ apiBase }) => {
   const query = useQuery();
   const initialCategory = query.get("category") || "";
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState(initialCategory);
+  const [location, setLocation] = useState("");
   const [categories, setCategories] = useState([]);
+  const [locations] = useState([
+    "Andhra Pradesh",
+    "Arunachal Pradesh",
+    "Assam",
+    "Bihar",
+    "Chhattisgarh",
+    "Goa",
+    "Gujarat",
+    "Haryana",
+    "Himachal Pradesh",
+    "Jharkhand",
+    "Karnataka",
+    "Kerala",
+    "Madhya Pradesh",
+    "Maharashtra",
+    "Manipur",
+    "Meghalaya",
+    "Mizoram",
+    "Nagaland",
+    "Odisha",
+    "Punjab",
+    "Rajasthan",
+    "Sikkim",
+    "Tamil Nadu",
+    "Telangana",
+    "Tripura",
+    "Uttar Pradesh",
+    "Uttarakhand",
+    "West Bengal",
+    "Andaman and Nicobar Islands",
+    "Chandigarh",
+    "Dadra and Nagar Haveli and Daman and Diu",
+    "Delhi",
+    "Jammu and Kashmir",
+    "Ladakh",
+    "Lakshadweep",
+    "Puducherry"
+  ]);
   const [posts, setPosts] = useState([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
@@ -30,6 +70,7 @@ const Posts = ({ apiBase }) => {
     params.set("limit", "6");
     if (search) params.set("search", search);
     if (category) params.set("category", category);
+    if (location) params.set("location", location);
     const res = await fetch(`${apiBase}/api/posts?${params.toString()}`);
     const data = await res.json();
     setPosts(data.items || []);
@@ -41,7 +82,7 @@ const Posts = ({ apiBase }) => {
       await fetch(`${apiBase}/api/search-log`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: category || "All", query: search })
+        body: JSON.stringify({ category: category || "All", query: searchInput })
       });
     } catch (err) {
       console.error(err);
@@ -50,7 +91,7 @@ const Posts = ({ apiBase }) => {
 
   useEffect(() => {
     loadPosts(page);
-  }, [page, search, category]);
+  }, [page, search, category, location]);
 
   const pageNumbers = useMemo(() => {
     return Array.from({ length: Math.min(pages, 4) }, (_, i) => i + 1);
@@ -68,8 +109,8 @@ const Posts = ({ apiBase }) => {
           <input
             type="text"
             placeholder="Search posts..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            value={searchInput}
+            onChange={(e) => { setSearchInput(e.target.value); }}
           />
           <select
             value={category}
@@ -80,11 +121,21 @@ const Posts = ({ apiBase }) => {
               <option key={cat._id} value={cat.name}>{cat.name}</option>
             ))}
           </select>
+          <select
+            value={location}
+            onChange={(e) => { setLocation(e.target.value); setPage(1); }}
+          >
+            <option value="">All Locations</option>
+            {locations.map((loc) => (
+              <option key={loc} value={loc}>{loc}</option>
+            ))}
+          </select>
           <button
             className="primary-btn"
             onClick={async () => {
               await logSearch();
-              loadPosts(1);
+              setSearch(searchInput);
+              setPage(1);
             }}
           >
             Search
@@ -100,6 +151,7 @@ const Posts = ({ apiBase }) => {
               <span className="badge">{post.category}</span>
               <h4>{post.title}</h4>
               <p>{post.description}</p>
+              {post.location && <p className="muted">Location: {post.location}</p>}
               <p className="muted">Posted by: {post.userEmail || "Community Member"}</p>
               <button className="ghost-btn" onClick={() => navigate(`/posts/${post._id}`)}>
                 Reach Out

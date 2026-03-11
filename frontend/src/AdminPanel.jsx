@@ -1,9 +1,27 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend } from "chart.js";
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 const PAGE_SIZE = 10;
+
+const safeJson = async (res) => {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return { invalid: true, message: "Invalid server response", raw: text };
+  }
+};
+
+const fetchJson = async (url, options) => {
+  const res = await fetch(url, options);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `Request failed: ${res.status}`);
+  }
+  return res.json();
+};
 
 const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [pending, setPending] = useState({ jobs: [], properties: [], pets: [], posts: [] });
@@ -13,19 +31,22 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [newsList, setNewsList] = useState([]);
   const [noteList, setNoteList] = useState([]);
   const [trending, setTrending] = useState([]);
-  const [categoryForm, setCategoryForm] = useState({ name: "", description: "" });
+  const [categoryForm, setCategoryForm] = useState({ name: "", description: "", iconUrl: "", iconData: "" });
   const [newsForm, setNewsForm] = useState({ title: "", category: "", description: "", image: "", imageData: "", date: "" });
   const [noteForm, setNoteForm] = useState({ title: "", description: "", category: "", pdfFile: "", pdfData: "", notificationDate: "" });
   const [settings, setSettings] = useState({ heroImage: "", contactEmail: "" });
   const [status, setStatus] = useState("");
   const [active, setActive] = useState("dashboard");
   const [editPost, setEditPost] = useState(null);
-  const [editForm, setEditForm] = useState({ title: "", category: "", description: "", contactName: "", phone: "", imageData: "", userEmail: "" });
+  const [editForm, setEditForm] = useState({ title: "", category: "", location: "", description: "", contactName: "", phone: "", imageData: "", userEmail: "" });
   const [editUploader, setEditUploader] = useState({ name: "", email: "" });
   const [editOpen, setEditOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [newsOpen, setNewsOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [categoryEditOpen, setCategoryEditOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [pdfReady, setPdfReady] = useState(true);
@@ -39,6 +60,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
 
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
+  const hasLoadedRef = useRef(false);
 
   const token = localStorage.getItem("adminToken");
 
@@ -64,75 +86,193 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     }
   };
 
-  const loadData = async () => {
+  const clampPage = (len, page, setPage) => {
+    const pages = Math.max(1, Math.ceil(len / PAGE_SIZE));
+    if (page > pages) setPage(pages);
+  };
+
+  const cacheKey = "adminCacheV1";
+
+  const loadCache = () => {
     try {
-      const [p, a, u, s, c, n, nt, tr] = await Promise.all([
-        fetch(`${apiBase}/api/admin/pending`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).then((r) => r.json()),
-        fetch(`${apiBase}/api/admin/approved`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).then((r) => r.json()),
-        fetch(`${apiBase}/api/admin/users`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).then((r) => r.json()),
-        fetch(`${apiBase}/api/settings/web`).then((r) => r.json()),
-        fetch(`${apiBase}/api/categories`).then((r) => r.json()),
-        fetch(`${apiBase}/api/news`).then((r) => r.json()),
-        fetch(`${apiBase}/api/notifications`).then((r) => r.json()),
-        fetch(`${apiBase}/api/admin/trending`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).then((r) => r.json())
-      ]);
-      setPending(p);
-      setApproved(a);
-      setUsers(u);
-      setCategories(c);
-      setNewsList(n);
-      setNoteList(nt);
-      setTrending(tr || []);
-      setSettings({
-        heroImage: s?.heroImage || "",
-        contactEmail: s?.contactEmail || ""
-      });
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed.pending) setPending(parsed.pending);
+      if (parsed.approved) setApproved(parsed.approved);
+      if (parsed.users) setUsers(parsed.users);
+      if (parsed.categories) setCategories(parsed.categories);
+      if (parsed.newsList) setNewsList(parsed.newsList);
+      if (parsed.noteList) setNoteList(parsed.noteList);
+      if (parsed.trending) setTrending(parsed.trending);
+      if (parsed.settings) setSettings(parsed.settings);
+      hasLoadedRef.current = true;
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const saveCache = (snapshot) => {
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ ...snapshot, ts: Date.now() }));
     } catch (err) {
       console.error(err);
     }
   };
 
   useEffect(() => {
-    loadData();
-  }, [apiBase]);
+    if (!hasLoadedRef.current) return;
+    saveCache({
+      pending,
+      approved,
+      users,
+      categories,
+      newsList,
+      noteList,
+      trending,
+      settings
+    });
+  }, [pending, approved, users, categories, newsList, noteList, trending, settings]);
+
+  const loadData = async (section = "dashboard") => {
+    try {
+      const baseHeaders = { Authorization: `Bearer ${token}` };
+      const jobs = [];
+
+      const isAll = section === "all";
+
+      if (isAll || section === "dashboard" || section === "pending" || section === "approved") {
+        jobs.push(
+          fetchJson(`${apiBase}/api/admin/pending`, { headers: baseHeaders }).then((data) => {
+            if (data && data.posts) setPending(data);
+          })
+        );
+        jobs.push(
+          fetchJson(`${apiBase}/api/admin/approved`, { headers: baseHeaders }).then((data) => {
+            if (data && data.posts) setApproved(data);
+          })
+        );
+      }
+      if (isAll || section === "dashboard" || section === "users") {
+        jobs.push(
+          fetchJson(`${apiBase}/api/admin/users`, { headers: baseHeaders }).then((data) => {
+            if (Array.isArray(data)) setUsers(data);
+          })
+        );
+      }
+      if (isAll || section === "dashboard" || section === "categories") {
+        jobs.push(
+          fetchJson(`${apiBase}/api/categories`).then((data) => {
+            if (Array.isArray(data)) setCategories(data);
+          })
+        );
+      }
+      if (isAll || section === "news" || section === "dashboard") {
+        jobs.push(
+          fetchJson(`${apiBase}/api/news`).then((data) => {
+            if (Array.isArray(data)) setNewsList(data);
+          })
+        );
+      }
+      if (isAll || section === "notifications" || section === "dashboard") {
+        jobs.push(
+          fetchJson(`${apiBase}/api/notifications`).then((data) => {
+            if (Array.isArray(data)) setNoteList(data);
+          })
+        );
+      }
+      if (isAll || section === "settings" || section === "dashboard") {
+        jobs.push(
+          fetchJson(`${apiBase}/api/settings/web`).then((s) =>
+            setSettings({ heroImage: s?.heroImage || "", contactEmail: s?.contactEmail || "" })
+          )
+        );
+      }
+      if (isAll || section === "dashboard") {
+        jobs.push(
+          fetchJson(`${apiBase}/api/admin/trending`, { headers: baseHeaders }).then((tr) => {
+            if (Array.isArray(tr)) setTrending(tr);
+          })
+        );
+      }
+
+      await Promise.allSettled(jobs);
+      hasLoadedRef.current = true;
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    loadCache();
+    loadData("all");
+    const interval = setInterval(() => {
+      if (!loading) loadData(active);
+    }, 25000);
+    return () => clearInterval(interval);
+  }, [apiBase, loading, active]);
+
+  useEffect(() => {
+    if (!loading) loadData(active);
+  }, [active]);
 
   const approve = async (type, id) => {
     await withLoading(async () => {
+      let approvedItem = null;
+      setPending((prev) => {
+        approvedItem = prev[type].find((item) => item._id === id) || null;
+        return {
+          ...prev,
+          [type]: prev[type].filter((item) => item._id !== id)
+        };
+      });
+      if (approvedItem) {
+        setApproved((prev) => ({
+          ...prev,
+          [type]: [{ ...approvedItem, status: "approved" }, ...prev[type]]
+        }));
+      }
       await fetch(`${apiBase}/api/${type}/${id}/approve`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}` }
       });
-      await loadData();
+      if (type === "posts") {
+        clampPage(pending.posts.length - 1, pendingPage, setPendingPage);
+        clampPage(approved.posts.length + 1, approvedPage, setApprovedPage);
+      }
+      void loadData(active);
     }, "Approved successfully");
   };
 
   const remove = async (type, id) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
     await withLoading(async () => {
+      if (type === "posts" || type === "jobs" || type === "properties" || type === "pets") {
+        setPending((prev) => ({ ...prev, [type]: prev[type].filter((item) => item._id !== id) }));
+        setApproved((prev) => ({ ...prev, [type]: prev[type].filter((item) => item._id !== id) }));
+      }
       await fetch(`${apiBase}/api/${type}/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
-      await loadData();
+      if (type === "posts") {
+        clampPage(pending.posts.length - 1, pendingPage, setPendingPage);
+        clampPage(approved.posts.length - 1, approvedPage, setApprovedPage);
+      }
+      void loadData(active);
     }, "Deleted successfully");
   };
 
   const removeUser = async (id) => {
     if (!window.confirm("Are you sure you want to delete this user?")) return;
     await withLoading(async () => {
+      setUsers((prev) => prev.filter((user) => user._id !== id));
       await fetch(`${apiBase}/api/admin/users/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
-      await loadData();
+      clampPage(users.length - 1, usersPage, setUsersPage);
+      void loadData(active);
     }, "User removed");
   };
 
@@ -140,18 +280,69 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     e.preventDefault();
     setStatus("");
     await withLoading(async () => {
+      const tempId = `temp-${Date.now()}`;
+      const tempItem = {
+        _id: tempId,
+        name: categoryForm.name,
+        description: categoryForm.description || "",
+        iconUrl: categoryForm.iconUrl,
+        iconData: categoryForm.iconData
+      };
+      setCategories((prev) => [tempItem, ...prev]);
+      setCategoriesPage(1);
       const res = await fetch(`${apiBase}/api/categories`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(categoryForm)
+        body: JSON.stringify({ ...categoryForm, iconUrl: categoryForm.iconUrl.trim() })
       });
-      if (!res.ok) throw new Error("Failed to add category.");
-      setCategoryForm({ name: "", description: "" });
-      await loadData();
+      const data = await safeJson(res);
+      if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
+      if (!res.ok) throw new Error(data.message || "Failed to add category.");
+      if (data.item) {
+        setCategories((prev) => prev.map((cat) => (cat._id === tempId ? data.item : cat)));
+      }
+      setCategoryForm({ name: "", description: "", iconUrl: "", iconData: "" });
+      void loadData(active);
     }, "Category added");
+  };
+
+  const startEditCategory = (cat) => {
+    setEditingCategory(cat._id);
+    setCategoryForm({
+      name: cat.name,
+      description: cat.description || "",
+      iconUrl: cat.iconUrl || "",
+      iconData: cat.iconData || ""
+    });
+    setCategoryEditOpen(true);
+  };
+
+  const saveCategory = async (e) => {
+    e.preventDefault();
+    await withLoading(async () => {
+      setCategories((prev) =>
+        prev.map((cat) => (cat._id === editingCategory ? { ...cat, ...categoryForm } : cat))
+      );
+      const res = await fetch(`${apiBase}/api/categories/${editingCategory}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ ...categoryForm, iconUrl: categoryForm.iconUrl.trim() })
+      });
+      const data = await safeJson(res);
+      if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
+      if (!res.ok) throw new Error(data.message || "Failed to update category.");
+      setCategoryEditOpen(false);
+      setEditingCategory(null);
+      setCategoryForm({ name: "", description: "", iconUrl: "", iconData: "" });
+      clampPage(categories.length, categoriesPage, setCategoriesPage);
+      void loadData(active);
+    }, "Category updated");
   };
 
   const deleteCategory = async (id) => {
@@ -161,7 +352,9 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
-      await loadData();
+      setCategories((prev) => prev.filter((cat) => cat._id !== id));
+      clampPage(categories.length - 1, categoriesPage, setCategoriesPage);
+      void loadData(active);
     }, "Category deleted");
   };
 
@@ -169,6 +362,18 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     e.preventDefault();
     setStatus("");
     await withLoading(async () => {
+      const tempId = `temp-${Date.now()}`;
+      const tempItem = {
+        _id: tempId,
+        title: newsForm.title,
+        category: newsForm.category,
+        description: newsForm.description,
+        image: newsForm.image,
+        imageData: newsForm.imageData,
+        date: newsForm.date
+      };
+      setNewsList((prev) => [tempItem, ...prev]);
+      setNewsPage(1);
       const res = await fetch(`${apiBase}/api/news`, {
         method: "POST",
         headers: {
@@ -177,9 +382,14 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         },
         body: JSON.stringify(newsForm)
       });
-      if (!res.ok) throw new Error("Failed to add news.");
+      const data = await safeJson(res);
+      if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
+      if (!res.ok) throw new Error(data.message || "Failed to add news.");
+      if (data.item) {
+        setNewsList((prev) => prev.map((item) => (item._id === tempId ? data.item : item)));
+      }
       setNewsForm({ title: "", category: "", description: "", image: "", imageData: "", date: "" });
-      await loadData();
+      void loadData(active);
     }, "News added");
   };
 
@@ -190,7 +400,9 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
-      await loadData();
+      setNewsList((prev) => prev.filter((item) => item._id !== id));
+      clampPage(newsList.length - 1, newsPage, setNewsPage);
+      void loadData(active);
     }, "News deleted");
   };
 
@@ -206,6 +418,18 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       return false;
     }
     return await withLoading(async () => {
+      const tempId = `temp-${Date.now()}`;
+      const tempItem = {
+        _id: tempId,
+        title: noteForm.title,
+        description: noteForm.description,
+        category: noteForm.category,
+        pdfFile: noteForm.pdfFile,
+        pdfData: noteForm.pdfData,
+        notificationDate: noteForm.notificationDate
+      };
+      setNoteList((prev) => [tempItem, ...prev]);
+      setNotesPage(1);
       const res = await fetch(`${apiBase}/api/notifications`, {
         method: "POST",
         headers: {
@@ -214,10 +438,15 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         },
         body: JSON.stringify(noteForm)
       });
-      if (!res.ok) throw new Error("Failed to add notification.");
+      const data = await safeJson(res);
+      if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
+      if (!res.ok) throw new Error(data.message || "Failed to add notification.");
+      if (data.item) {
+        setNoteList((prev) => prev.map((item) => (item._id === tempId ? data.item : item)));
+      }
       setNoteForm({ title: "", description: "", category: "", pdfFile: "", pdfData: "", notificationDate: "" });
       setPdfReady(true);
-      await loadData();
+      void loadData(active);
       return true;
     }, "Notification added");
   };
@@ -229,7 +458,9 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
-      await loadData();
+      setNoteList((prev) => prev.filter((item) => item._id !== id));
+      clampPage(noteList.length - 1, notesPage, setNotesPage);
+      void loadData(active);
     }, "Notification deleted");
   };
 
@@ -245,7 +476,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         body: JSON.stringify(settings)
       });
       if (!res.ok) throw new Error("Failed to update settings.");
-      await loadData();
+      void loadData(active);
     }, "Settings updated");
   };
 
@@ -253,6 +484,14 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     const reader = new FileReader();
     reader.onloadend = () => {
       setNewsForm((prev) => ({ ...prev, imageData: reader.result }));
+    };
+    if (file) reader.readAsDataURL(file);
+  };
+
+  const handleCategoryIcon = (file) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setCategoryForm((prev) => ({ ...prev, iconData: reader.result, iconUrl: "" }));
     };
     if (file) reader.readAsDataURL(file);
   };
@@ -277,6 +516,19 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
 
   const startEdit = async (post) => {
     setEditPost(post._id);
+    setEditForm({
+      title: post.title || "",
+      category: post.category || "",
+      location: post.location || "",
+      description: post.description || "",
+      contactName: post.contactName || "",
+      phone: post.phone || "",
+      imageData: post.imageData || "",
+      userEmail: post.userEmail || ""
+    });
+    setEditUploader({ name: post.contactName || "", email: post.userEmail || "" });
+    setEditOpen(true);
+    setEditLoading(true);
     try {
       const res = await fetch(`${apiBase}/api/admin/posts/${post._id}/details`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -285,6 +537,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       setEditForm({
         title: data.post.title,
         category: data.post.category,
+        location: data.post.location || "",
         description: data.post.description,
         contactName: data.post.contactName || "",
         phone: data.post.phone || "",
@@ -292,15 +545,20 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         userEmail: data.post.userEmail || ""
       });
       setEditUploader({ name: data.user?.name || "", email: data.user?.email || "" });
-      setEditOpen(true);
+      setEditLoading(false);
     } catch (err) {
       console.error(err);
+      setEditLoading(false);
     }
   };
 
   const saveEdit = async (e) => {
     e.preventDefault();
     await withLoading(async () => {
+      setApproved((prev) => ({
+        ...prev,
+        posts: prev.posts.map((item) => (item._id === editPost ? { ...item, ...editForm } : item))
+      }));
       const res = await fetch(`${apiBase}/api/admin/posts/${editPost}`, {
         method: "PUT",
         headers: {
@@ -309,10 +567,11 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         },
         body: JSON.stringify(editForm)
       });
-      if (!res.ok) throw new Error("Failed to save changes.");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to save changes.");
       setEditPost(null);
       setEditOpen(false);
-      await loadData();
+      void loadData(active);
     }, "Post updated");
   };
 
@@ -322,6 +581,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         <div key={item._id} className="card">
           <h4>{item.jobTitle || item.propertyTitle || item.petName || item.title}</h4>
           <p>{item.description || item.location || item.breed || item.category}</p>
+          {item.location && <p className="muted">Location: {item.location}</p>}
           <div className="action-row">
             {pendingView && (
               <button className="primary-btn" onClick={() => approve(type, item._id)}>
@@ -419,15 +679,6 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
 
   return (
     <main className="admin-page">
-      {loading && (
-        <div className="loading-overlay">
-          <div className="loading-card">
-            <div className="loader-dot"></div>
-            <div className="loader-dot"></div>
-            <div className="loader-dot"></div>
-          </div>
-        </div>
-      )}
       {toasts.length > 0 && (
         <div className="toast-stack">
           {toasts.map((toast) => (
@@ -463,6 +714,15 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         </button>
       </aside>
 
+      {loading && (
+        <div className="loading-overlay">
+          <div className="loading-card">
+            <div className="loader-dot"></div>
+            <div className="loader-dot"></div>
+            <div className="loader-dot"></div>
+          </div>
+        </div>
+      )}
       <section className="admin-content">
         {active === "dashboard" && (
           <div className="admin-topbar dashboard-hero">
@@ -533,6 +793,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 <h3>Edit Approved Post</h3>
                 <button className="ghost-btn" onClick={() => setEditOpen(false)}>Close</button>
               </div>
+              {editLoading && <p className="muted">Loading details...</p>}
               <p className="muted">Uploaded by: {editUploader.name} ({editUploader.email})</p>
               <form className="form-card" onSubmit={saveEdit}>
                 <input
@@ -554,6 +815,13 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   placeholder="Description"
                   value={editForm.description}
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Location"
+                  value={editForm.location}
+                  onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
                   required
                 />
                 <input
@@ -619,9 +887,24 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
             <div className="grid">
               {categoriesPageItems.map((cat) => (
                 <div key={cat._id} className="card">
+                  {(cat.iconData || cat.iconUrl) && (
+                    <img
+                      className="category-icon"
+                      src={cat.iconData || cat.iconUrl}
+                      alt={cat.name}
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.style.display = "none";
+                      }}
+                    />
+                  )}
                   <h4>{cat.name}</h4>
                   <p>{cat.description || ""}</p>
                   <div className="action-row">
+                    <button className="ghost-btn" onClick={() => startEditCategory(cat)}>Edit</button>
                     <button className="ghost-btn" onClick={() => deleteCategory(cat._id)}>Delete</button>
                   </div>
                 </div>
@@ -652,7 +935,78 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   value={categoryForm.description}
                   onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
                 />
+                <input
+                  type="text"
+                  placeholder="Icon URL"
+                  value={categoryForm.iconUrl}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, iconUrl: e.target.value, iconData: "" })}
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleCategoryIcon(e.target.files[0])}
+                />
+                {(categoryForm.iconData || categoryForm.iconUrl) && (
+                  <img
+                    className="preview-image"
+                    src={categoryForm.iconData || categoryForm.iconUrl}
+                    alt="Category Icon"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                )}
                 <button className="primary-btn" type="submit">Add Category</button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {categoryEditOpen && (
+          <div className="modal-overlay" onClick={() => setCategoryEditOpen(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-head">
+                <h3>Edit Category</h3>
+                <button className="ghost-btn" onClick={() => setCategoryEditOpen(false)}>Close</button>
+              </div>
+              <form className="form-card" onSubmit={saveCategory}>
+                <input
+                  type="text"
+                  placeholder="Category Name"
+                  value={categoryForm.name}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                  required
+                />
+                <textarea
+                  rows="3"
+                  placeholder="Description"
+                  value={categoryForm.description}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                />
+                <input
+                  type="text"
+                  placeholder="Icon URL"
+                  value={categoryForm.iconUrl}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, iconUrl: e.target.value, iconData: "" })}
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleCategoryIcon(e.target.files[0])}
+                />
+                {(categoryForm.iconData || categoryForm.iconUrl) && (
+                  <img
+                    className="preview-image"
+                    src={categoryForm.iconData || categoryForm.iconUrl}
+                    alt="Category Icon"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                )}
+                <button className="primary-btn" type="submit">Save Changes</button>
               </form>
             </div>
           </div>

@@ -1,9 +1,10 @@
-﻿import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 
-const Navbar = () => {
+const Navbar = ({ apiBase }) => {
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [categories, setCategories] = useState([]);
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const user = token ? JSON.parse(localStorage.getItem("user") || "{}") : null;
@@ -15,6 +16,14 @@ const Navbar = () => {
     navigate("/login");
   };
 
+  useEffect(() => {
+    if (!apiBase) return;
+    fetch(`${apiBase}/api/categories`)
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) && setCategories(data))
+      .catch(console.error);
+  }, [apiBase]);
+
   return (
     <header className="navbar">
       <div className="navbar-inner">
@@ -25,9 +34,16 @@ const Navbar = () => {
         <nav className={`nav-links ${open ? "open" : ""}`}>
           <NavLink to="/" onClick={() => setOpen(false)}>Home</NavLink>
           <NavLink to="/news" onClick={() => setOpen(false)}>News</NavLink>
-          <NavLink to="/services" onClick={() => setOpen(false)}>Services</NavLink>
-          <NavLink to="/posts" onClick={() => setOpen(false)}>Posts</NavLink>
-          <NavLink to="/notifications" onClick={() => setOpen(false)}>Notifications</NavLink>
+          {categories.map((cat) => (
+            <NavLink
+              key={cat._id}
+              to={`/posts?category=${encodeURIComponent(cat.name)}`}
+              onClick={() => setOpen(false)}
+            >
+              {cat.name}
+            </NavLink>
+          ))}
+          <NavLink to="/notifications" onClick={() => setOpen(false)}>Government Notifications</NavLink>
           <NavLink to="/contact" onClick={() => setOpen(false)}>Contact</NavLink>
         </nav>
         <div className="nav-actions">

@@ -1,5 +1,5 @@
-Ôªøimport React, { useEffect, useMemo, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 
 const fallbackHero = "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80";
 
@@ -11,8 +11,10 @@ const Home = ({ apiBase }) => {
   const [posts, setPosts] = useState([]);
   const [heroImage, setHeroImage] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
+    let mounted = true;
     const load = async () => {
       try {
         const [n, g, c, p, settings] = await Promise.all([
@@ -22,6 +24,7 @@ const Home = ({ apiBase }) => {
           fetch(`${apiBase}/api/posts?status=approved&limit=15`).then((r) => r.json()),
           fetch(`${apiBase}/api/settings/web`).then((r) => r.json())
         ]);
+        if (!mounted) return;
         setNews(n);
         setNotifications(g);
         setCategories(c);
@@ -33,8 +36,23 @@ const Home = ({ apiBase }) => {
         console.error(err);
       }
     };
+    const handleFocus = () => load();
     load();
+    const interval = setInterval(load, 20000);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, [apiBase]);
+
+  useEffect(() => {
+    if (location.hash === "#categories") {
+      const el = document.getElementById("categories");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [location.hash]);
 
   const searchResults = useMemo(() => {
     if (!query.trim()) return [];
@@ -87,6 +105,42 @@ const Home = ({ apiBase }) => {
         </div>
       </section>
 
+      <section className="section" id="categories">
+        <div className="container">
+          <div className="section-head">
+            <div>
+              <div className="section-label">CATEGORIES</div>
+              <h2>Service Categories</h2>
+            </div>
+            <NavLink to="/services">View all</NavLink>
+          </div>
+          <div className="services-grid">
+            {categories.slice(0, 6).map((cat, idx) => (
+              <div key={cat._id} className="card category-card">
+                {(cat.iconData || cat.iconUrl) && (
+                  <img
+                    className="category-icon"
+                    src={cat.iconData || cat.iconUrl}
+                    alt={cat.name}
+                    loading="lazy"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                )}
+                <div className="service-number">{String(idx + 1).padStart(2, "0")}</div>
+                <h4>{cat.name}</h4>
+                <p>{cat.description || "Explore verified listings."}</p>
+                <button className="ghost-btn" onClick={() => goToCategory(cat.name)}>View Posts</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="section">
         <div className="container">
           <div className="section-head">
@@ -115,6 +169,7 @@ const Home = ({ apiBase }) => {
                     )}
                     <div>
                       <h4>{item.title || item.name}</h4>
+                      {item.location && <p className="muted">Location: {item.location}</p>}
                       <NavLink className="ghost-btn" to={`/posts/${item._id}`}>Reach Out</NavLink>
                     </div>
                   </div>
@@ -142,6 +197,7 @@ const Home = ({ apiBase }) => {
                   <span className="badge">{item.category}</span>
                   <h4>{item.title}</h4>
                   <p>{item.description}</p>
+                  {item.location && <p className="muted">Location: {item.location}</p>}
                   <NavLink className="ghost-btn" to={`/posts/${item._id}`}>Reach Out</NavLink>
                 </div>
               </article>
@@ -151,28 +207,6 @@ const Home = ({ apiBase }) => {
               <p>Browse the complete marketplace feed.</p>
               <span className="ghost-btn">View All</span>
             </NavLink>
-          </div>
-        </div>
-      </section>
-
-      <section className="section">
-        <div className="container">
-          <div className="section-head">
-            <div>
-              <div className="section-label">CATEGORIES</div>
-              <h2>Service Categories</h2>
-            </div>
-            <NavLink to="/services">View all</NavLink>
-          </div>
-          <div className="services-grid">
-            {categories.slice(0, 6).map((cat, idx) => (
-              <div key={cat._id} className="card category-card">
-                <div className="service-number">{String(idx + 1).padStart(2, "0")}</div>
-                <h4>{cat.name}</h4>
-                <p>{cat.description || "Explore verified listings."}</p>
-                <button className="ghost-btn" onClick={() => goToCategory(cat.name)}>View Posts</button>
-              </div>
-            ))}
           </div>
         </div>
       </section>
@@ -250,9 +284,9 @@ const Home = ({ apiBase }) => {
           <div className="section-head">
             <div>
               <div className="section-label">WHY US</div>
-         
+              <h2>Why Use PUneClass</h2>
             </div>
-           
+            <p>Minimal, curated, and trusted community updates.</p>
           </div>
           <div className="services-grid">
             <div className="card">
@@ -283,7 +317,7 @@ const Home = ({ apiBase }) => {
         <div className="container">
           <div className="section-head">
             <div className="section-label">STATS</div>
-        
+            <h2>User Statistics</h2>
           </div>
           <div className="stats-grid">
             <div className="card">
@@ -310,7 +344,7 @@ const Home = ({ apiBase }) => {
         <div className="container">
           <div className="section-head">
             <div className="section-label">PROCESS</div>
-         
+            <h2>How It Works</h2>
           </div>
           <div className="services-grid">
             <div className="card">
@@ -341,19 +375,19 @@ const Home = ({ apiBase }) => {
         <div className="container">
           <div className="section-head">
             <div className="section-label">TESTIMONIALS</div>
-      
+            <h2>Community Testimonials</h2>
           </div>
           <div className="testimonial-grid">
             <div className="testimonial-card">
-              <p>‚ÄúPremium layout and verified listings make everything feel trustworthy.‚Äù</p>
+              <p>ìPremium layout and verified listings make everything feel trustworthy.î</p>
               <span>- Aditi K.</span>
             </div>
             <div className="testimonial-card">
-              <p>‚ÄúPosted a service and got approved fast. Super smooth.‚Äù</p>
+              <p>ìPosted a service and got approved fast. Super smooth.î</p>
               <span>- Rahul M.</span>
             </div>
             <div className="testimonial-card">
-              <p>‚ÄúThe government updates section keeps me informed daily.‚Äù</p>
+              <p>ìThe government updates section keeps me informed daily.î</p>
               <span>- Sneha P.</span>
             </div>
           </div>
@@ -364,3 +398,4 @@ const Home = ({ apiBase }) => {
 };
 
 export default Home;
+

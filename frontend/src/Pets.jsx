@@ -43,6 +43,7 @@ const Pets = ({ apiBase }) => {
               <span className="badge">{item.breed}</span>
               <h4>{item.petName}</h4>
               <p>{item.age} · {item.gender}</p>
+              {item.location && <p className="muted">Location: {item.location}</p>}
               <div className="contact-row">
                 <span>{item.contactPerson}</span>
                 <a className="ghost-btn" href={`https://wa.me/${item.phone}`}>WhatsApp</a>

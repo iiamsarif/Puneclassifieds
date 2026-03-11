@@ -9,6 +9,7 @@ const MyPosts = ({ apiBase }) => {
   const [form, setForm] = useState({
     title: "",
     category: "",
+    location: "",
     description: "",
     contactName: "",
     phone: "",
@@ -44,6 +45,7 @@ const MyPosts = ({ apiBase }) => {
     setForm({
       title: post.title,
       category: post.category,
+      location: post.location || "",
       description: post.description,
       contactName: post.contactName,
       phone: post.phone,
@@ -74,7 +76,7 @@ const MyPosts = ({ apiBase }) => {
       setEditing(null);
       setEditOpen(false);
       setStatus("Updated successfully.");
-      load();
+      setPosts((prev) => prev.map((post) => (post._id === editing ? { ...post, ...form } : post)));
     } catch (err) {
       setStatus(err.message);
     }
@@ -91,6 +93,7 @@ const MyPosts = ({ apiBase }) => {
           <div key={post._id} className="card">
             <h4>{post.title}</h4>
             <p>{post.description}</p>
+            {post.location && <p className="muted">Location: {post.location}</p>}
             <p className="muted">Posted by: {post.userEmail || "You"}</p>
             <div className="action-row">
               <button className="ghost-btn" onClick={() => startEdit(post)}>Edit</button>
@@ -127,6 +130,13 @@ const MyPosts = ({ apiBase }) => {
                 placeholder="Description"
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
+                required
+              />
+              <input
+                type="text"
+                placeholder="Location"
+                value={form.location}
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
                 required
               />
               <input

@@ -6,6 +6,7 @@ const PostPet = ({ apiBase }) => {
     breed: "",
     age: "",
     gender: "",
+    location: "",
     photos: "",
     contactPerson: "",
     phone: ""
@@ -28,7 +29,7 @@ const PostPet = ({ apiBase }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Submission failed");
       setStatus("Submitted. Awaiting admin approval.");
-      setForm({ petName: "", breed: "", age: "", gender: "", photos: "", contactPerson: "", phone: "" });
+      setForm({ petName: "", breed: "", age: "", gender: "", location: "", photos: "", contactPerson: "", phone: "" });
     } catch (err) {
       setStatus(err.message);
     }
@@ -68,6 +69,13 @@ const PostPet = ({ apiBase }) => {
             placeholder="Gender"
             value={form.gender}
             onChange={(e) => setForm({ ...form, gender: e.target.value })}
+            required
+          />
+          <input
+            type="text"
+            placeholder="Location"
+            value={form.location}
+            onChange={(e) => setForm({ ...form, location: e.target.value })}
             required
           />
           <input

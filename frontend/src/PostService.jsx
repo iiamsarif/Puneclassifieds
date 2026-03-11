@@ -5,6 +5,7 @@ const PostService = ({ apiBase }) => {
   const [form, setForm] = useState({
     title: "",
     category: "",
+    location: "",
     description: "",
     contactName: "",
     phone: "",
@@ -50,7 +51,7 @@ const PostService = ({ apiBase }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Submission failed");
       setStatus("Submitted. Awaiting admin approval.");
-      setForm({ title: "", category: "", description: "", contactName: "", phone: "", imageData: "" });
+      setForm({ title: "", category: "", location: "", description: "", contactName: "", phone: "", imageData: "" });
       setImageReady(false);
     } catch (err) {
       setStatus(err.message);
@@ -87,6 +88,13 @@ const PostService = ({ apiBase }) => {
             placeholder="Description"
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
+            required
+          />
+          <input
+            type="text"
+            placeholder="Location"
+            value={form.location}
+            onChange={(e) => setForm({ ...form, location: e.target.value })}
             required
           />
           <input

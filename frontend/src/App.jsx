@@ -21,7 +21,7 @@ const AdminAccess = lazy(() => import("./AdminAccess.jsx"));
 const AdminPanel = lazy(() => import("./AdminPanel.jsx"));
 const PostService = lazy(() => import("./PostService.jsx"));
 
-const API_BASE = "https://puneclassifieds.onrender.com";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
 const RequireAuth = ({ children }) => {
   const token = localStorage.getItem("token");
@@ -52,7 +52,7 @@ const Layout = () => {
       {!isAuthRoute && (isAdminRoute ? (
         <AdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       ) : (
-        <Navbar />
+        <Navbar apiBase={API_BASE} />
       ))}
       <Suspense fallback={<Loader />}>
         <Routes>
