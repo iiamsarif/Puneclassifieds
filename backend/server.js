@@ -3,20 +3,47 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 const { MongoClient, ObjectId } = require("mongodb");
 
 dotenv.config();
 
 const app = express();
+app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json({ limit: "25mb" }));
 
 const uri = process.env.MONGODB_URI;
 const dbName = process.env.DB_NAME || "community_portal";
 const jwtSecret = process.env.JWT_SECRET || "secret";
+const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const client = new MongoClient(uri);
+const uploadDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const safeName = (file.originalname || "file").replace(/\s+/g, "-");
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`);
+  }
+});
+const upload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } });
+const maybeUpload = (field) => (req, res, next) => {
+  if (req.is("multipart/form-data")) {
+    return upload.single(field)(req, res, next);
+  }
+  return next();
+};
+const fileUrl = (req, file) =>
+  file ? `${req.protocol}://${req.get("host")}/uploads/${file.filename}` : "";
 let isConnected = false;
+
+app.use("/uploads", express.static(uploadDir));
 
 const getDb = async () => {
   if (!isConnected) {
@@ -105,7 +132,7 @@ const listItems = (collection) => async (req, res) => {
   const query = {};
   if (req.query.status) query.status = req.query.status;
   const db = await getDb();
-  const items = await db.collection(collection).find(query).toArray();
+  const items = await db.collection(collection).find(query).sort({ createdAt: -1 }).toArray();
   return res.json(items);
 };
 
@@ -140,14 +167,15 @@ app.put("/api/pets/:id/approve", adminMiddleware, approveItem("pets"));
 app.delete("/api/pets/:id", adminMiddleware, deleteItem("pets"));
 
 app.get("/api/news", listItems("news"));
-app.post("/api/news", adminMiddleware, async (req, res) => {
+app.post("/api/news", adminMiddleware, maybeUpload("image"), async (req, res) => {
   const db = await getDb();
+  const imageUrl = fileUrl(req, req.file) || (req.body.image || "");
   const payload = {
     title: req.body.title,
     category: req.body.category,
     description: req.body.description,
-    image: req.body.image || "",
-    imageData: req.body.imageData || "",
+    image: imageUrl || "",
+    imageData: imageUrl ? "" : (req.body.imageData || ""),
     date: req.body.date,
     createdAt: new Date()
   };
@@ -166,14 +194,15 @@ app.delete("/api/news/:id", adminMiddleware, async (req, res) => {
 });
 
 app.get("/api/notifications", listItems("notifications"));
-app.post("/api/notifications", adminMiddleware, async (req, res) => {
+app.post("/api/notifications", adminMiddleware, maybeUpload("pdf"), async (req, res) => {
   const db = await getDb();
+  const pdfUrl = fileUrl(req, req.file) || (req.body.pdfFile || "");
   const payload = {
     title: req.body.title,
     description: req.body.description,
     category: req.body.category,
-    pdfFile: req.body.pdfFile || "",
-    pdfData: req.body.pdfData || "",
+    pdfFile: pdfUrl || "",
+    pdfData: pdfUrl ? "" : (req.body.pdfData || ""),
     notificationDate: req.body.notificationDate,
     createdAt: new Date()
   };
@@ -197,13 +226,14 @@ app.get("/api/categories", async (req, res) => {
   return res.json(items);
 });
 
-app.post("/api/categories", adminMiddleware, async (req, res) => {
+app.post("/api/categories", adminMiddleware, maybeUpload("icon"), async (req, res) => {
   const db = await getDb();
+  const iconUrl = fileUrl(req, req.file) || (req.body.iconUrl || "");
   const payload = {
     name: req.body.name,
     description: req.body.description || "",
-    iconUrl: req.body.iconUrl || "",
-    iconData: req.body.iconData || "",
+    iconUrl,
+    iconData: iconUrl ? "" : (req.body.iconData || ""),
     createdAt: new Date()
   };
   const result = await db.collection("categories").insertOne(payload);
@@ -216,16 +246,19 @@ app.delete("/api/categories/:id", adminMiddleware, async (req, res) => {
   return res.json({ message: "Category deleted" });
 });
 
-app.put("/api/categories/:id", adminMiddleware, async (req, res) => {
+app.put("/api/categories/:id", adminMiddleware, maybeUpload("icon"), async (req, res) => {
   const db = await getDb();
+  const existing = await db.collection("categories").find({ _id: new ObjectId(req.params.id) }).toArray();
+  const current = existing[0] || {};
+  const iconUrl = fileUrl(req, req.file) || req.body.iconUrl || current.iconUrl || "";
   await db.collection("categories").updateOne(
     { _id: new ObjectId(req.params.id) },
     {
       $set: {
         name: req.body.name,
         description: req.body.description || "",
-        iconUrl: req.body.iconUrl || "",
-        iconData: req.body.iconData || "",
+        iconUrl,
+        iconData: iconUrl ? "" : (req.body.iconData || current.iconData || ""),
         updatedAt: new Date()
       }
     }
@@ -241,7 +274,9 @@ app.get("/api/posts", async (req, res) => {
   const limit = parseInt(req.query.limit || "6", 10);
   const query = {};
   if (status) query.status = status;
-  if (category) query.category = category;
+  if (category) {
+    query.category = { $regex: `^${escapeRegex(category)}$`, $options: "i" };
+  }
   if (location) query.location = location;
   if (search) {
     query.$or = [
@@ -253,6 +288,7 @@ app.get("/api/posts", async (req, res) => {
   const items = await db
     .collection("posts")
     .find(query)
+    .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
     .limit(limit)
     .toArray();
@@ -295,11 +331,12 @@ app.get("/api/my-posts", authMiddleware, async (req, res) => {
   const db = await getDb();
   const items = await db.collection("posts").find({
     $or: [{ userEmail: req.user.email }, { userId: req.user.id }]
-  }).toArray();
+  }).sort({ createdAt: -1 }).toArray();
   return res.json(items);
 });
 
-app.post("/api/posts", authMiddleware, async (req, res) => {
+app.post("/api/posts", authMiddleware, maybeUpload("image"), async (req, res) => {
+  const imageUrl = fileUrl(req, req.file) || (req.body.imageUrl || "");
   const payload = {
     title: req.body.title,
     category: req.body.category,
@@ -307,7 +344,8 @@ app.post("/api/posts", authMiddleware, async (req, res) => {
     description: req.body.description,
     contactName: req.body.contactName,
     phone: req.body.phone,
-    imageData: req.body.imageData,
+    imageUrl,
+    imageData: imageUrl ? "" : (req.body.imageData || ""),
     status: "pending",
     createdAt: new Date(),
     userId: req.user.id,
@@ -318,7 +356,7 @@ app.post("/api/posts", authMiddleware, async (req, res) => {
   return res.json({ message: "Submitted" });
 });
 
-app.put("/api/posts/:id", authMiddleware, async (req, res) => {
+app.put("/api/posts/:id", authMiddleware, maybeUpload("image"), async (req, res) => {
   const db = await getDb();
   const item = await db.collection("posts").find({ _id: new ObjectId(req.params.id) }).toArray();
   if (!item[0]) return res.status(404).json({ message: "Not found" });
@@ -327,18 +365,32 @@ app.put("/api/posts/:id", authMiddleware, async (req, res) => {
   if (!ownsById && !ownsByEmail) {
     return res.status(403).json({ message: "Forbidden" });
   }
+  const imageUrl = fileUrl(req, req.file) || req.body.imageUrl || item[0].imageUrl || "";
+  const payload = {
+    ...req.body,
+    imageUrl,
+    imageData: imageUrl ? "" : (req.body.imageData || item[0].imageData || "")
+  };
   await db.collection("posts").updateOne(
     { _id: new ObjectId(req.params.id) },
-    { $set: { ...req.body, updatedAt: new Date() } }
+    { $set: { ...payload, updatedAt: new Date() } }
   );
   return res.json({ message: "Updated" });
 });
 
-app.put("/api/admin/posts/:id", adminMiddleware, async (req, res) => {
+app.put("/api/admin/posts/:id", adminMiddleware, maybeUpload("image"), async (req, res) => {
   const db = await getDb();
+  const existing = await db.collection("posts").find({ _id: new ObjectId(req.params.id) }).toArray();
+  const current = existing[0] || {};
+  const imageUrl = fileUrl(req, req.file) || req.body.imageUrl || current.imageUrl || "";
+  const payload = {
+    ...req.body,
+    imageUrl,
+    imageData: imageUrl ? "" : (req.body.imageData || current.imageData || "")
+  };
   await db.collection("posts").updateOne(
     { _id: new ObjectId(req.params.id) },
-    { $set: { ...req.body, updatedAt: new Date() } }
+    { $set: { ...payload, updatedAt: new Date() } }
   );
   return res.json({ message: "Updated" });
 });
@@ -377,10 +429,10 @@ app.put("/api/settings/web", adminMiddleware, async (req, res) => {
 app.get("/api/admin/pending", adminMiddleware, async (req, res) => {
   const db = await getDb();
   const [jobs, properties, pets, posts] = await Promise.all([
-    db.collection("jobs").find({ status: "pending" }).toArray(),
-    db.collection("properties").find({ status: "pending" }).toArray(),
-    db.collection("pets").find({ status: "pending" }).toArray(),
-    db.collection("posts").find({ status: "pending" }).toArray()
+    db.collection("jobs").find({ status: "pending" }).sort({ createdAt: -1 }).toArray(),
+    db.collection("properties").find({ status: "pending" }).sort({ createdAt: -1 }).toArray(),
+    db.collection("pets").find({ status: "pending" }).sort({ createdAt: -1 }).toArray(),
+    db.collection("posts").find({ status: "pending" }).sort({ createdAt: -1 }).toArray()
   ]);
   return res.json({ jobs, properties, pets, posts });
 });
@@ -388,10 +440,10 @@ app.get("/api/admin/pending", adminMiddleware, async (req, res) => {
 app.get("/api/admin/approved", adminMiddleware, async (req, res) => {
   const db = await getDb();
   const [jobs, properties, pets, posts] = await Promise.all([
-    db.collection("jobs").find({ status: "approved" }).toArray(),
-    db.collection("properties").find({ status: "approved" }).toArray(),
-    db.collection("pets").find({ status: "approved" }).toArray(),
-    db.collection("posts").find({ status: "approved" }).toArray()
+    db.collection("jobs").find({ status: "approved" }).sort({ createdAt: -1 }).toArray(),
+    db.collection("properties").find({ status: "approved" }).sort({ createdAt: -1 }).toArray(),
+    db.collection("pets").find({ status: "approved" }).sort({ createdAt: -1 }).toArray(),
+    db.collection("posts").find({ status: "approved" }).sort({ createdAt: -1 }).toArray()
   ]);
   return res.json({ jobs, properties, pets, posts });
 });
