@@ -1304,8 +1304,9 @@ small { font-size: 13px; }
 }
 
 .page-loader {
-  padding: 120px 8vw;
-  display: flex;
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
   gap: 8px;
 }
 
