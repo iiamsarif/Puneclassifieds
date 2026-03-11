@@ -142,7 +142,7 @@ app.delete("/api/pets/:id", adminMiddleware, deleteItem("pets"));
 app.get("/api/news", listItems("news"));
 app.post("/api/news", adminMiddleware, async (req, res) => {
   const db = await getDb();
-  await db.collection("news").insertOne({
+  const payload = {
     title: req.body.title,
     category: req.body.category,
     description: req.body.description,
@@ -150,8 +150,9 @@ app.post("/api/news", adminMiddleware, async (req, res) => {
     imageData: req.body.imageData || "",
     date: req.body.date,
     createdAt: new Date()
-  });
-  return res.json({ message: "News added" });
+  };
+  const result = await db.collection("news").insertOne(payload);
+  return res.json({ message: "News added", item: { ...payload, _id: result.insertedId } });
 });
 app.get("/api/news/:id", async (req, res) => {
   const db = await getDb();
@@ -167,7 +168,7 @@ app.delete("/api/news/:id", adminMiddleware, async (req, res) => {
 app.get("/api/notifications", listItems("notifications"));
 app.post("/api/notifications", adminMiddleware, async (req, res) => {
   const db = await getDb();
-  await db.collection("notifications").insertOne({
+  const payload = {
     title: req.body.title,
     description: req.body.description,
     category: req.body.category,
@@ -175,8 +176,9 @@ app.post("/api/notifications", adminMiddleware, async (req, res) => {
     pdfData: req.body.pdfData || "",
     notificationDate: req.body.notificationDate,
     createdAt: new Date()
-  });
-  return res.json({ message: "Notification added" });
+  };
+  const result = await db.collection("notifications").insertOne(payload);
+  return res.json({ message: "Notification added", item: { ...payload, _id: result.insertedId } });
 });
 app.get("/api/notifications/:id", async (req, res) => {
   const db = await getDb();
@@ -197,12 +199,15 @@ app.get("/api/categories", async (req, res) => {
 
 app.post("/api/categories", adminMiddleware, async (req, res) => {
   const db = await getDb();
-  await db.collection("categories").insertOne({
+  const payload = {
     name: req.body.name,
     description: req.body.description || "",
+    iconUrl: req.body.iconUrl || "",
+    iconData: req.body.iconData || "",
     createdAt: new Date()
-  });
-  return res.json({ message: "Category added" });
+  };
+  const result = await db.collection("categories").insertOne(payload);
+  return res.json({ message: "Category added", item: { ...payload, _id: result.insertedId } });
 });
 
 app.delete("/api/categories/:id", adminMiddleware, async (req, res) => {
@@ -211,14 +216,33 @@ app.delete("/api/categories/:id", adminMiddleware, async (req, res) => {
   return res.json({ message: "Category deleted" });
 });
 
+app.put("/api/categories/:id", adminMiddleware, async (req, res) => {
+  const db = await getDb();
+  await db.collection("categories").updateOne(
+    { _id: new ObjectId(req.params.id) },
+    {
+      $set: {
+        name: req.body.name,
+        description: req.body.description || "",
+        iconUrl: req.body.iconUrl || "",
+        iconData: req.body.iconData || "",
+        updatedAt: new Date()
+      }
+    }
+  );
+  return res.json({ message: "Category updated" });
+});
+
 app.get("/api/posts", async (req, res) => {
   const db = await getDb();
   const { status, category, search } = req.query;
+  const { location } = req.query;
   const page = parseInt(req.query.page || "1", 10);
   const limit = parseInt(req.query.limit || "6", 10);
   const query = {};
   if (status) query.status = status;
   if (category) query.category = category;
+  if (location) query.location = location;
   if (search) {
     query.$or = [
       { title: { $regex: search, $options: "i" } },
@@ -239,6 +263,19 @@ app.get("/api/posts/:id", async (req, res) => {
   const db = await getDb();
   const item = await db.collection("posts").find({ _id: new ObjectId(req.params.id) }).toArray();
   return res.json(item[0]);
+});
+
+app.get("/api/locations", async (req, res) => {
+  const db = await getDb();
+  const items = await db.collection("posts").find({ status: "approved" }).toArray();
+  const locations = Array.from(
+    new Set(
+      items
+        .map((item) => (item.location || "").trim())
+        .filter((value) => value)
+    )
+  );
+  return res.json(locations);
 });
 
 app.get("/api/admin/posts/:id/details", adminMiddleware, async (req, res) => {
@@ -266,6 +303,7 @@ app.post("/api/posts", authMiddleware, async (req, res) => {
   const payload = {
     title: req.body.title,
     category: req.body.category,
+    location: req.body.location || "",
     description: req.body.description,
     contactName: req.body.contactName,
     phone: req.body.phone,
