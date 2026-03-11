@@ -10,6 +10,7 @@ const Home = ({ apiBase }) => {
   const [categories, setCategories] = useState([]);
   const [posts, setPosts] = useState([]);
   const [heroImage, setHeroImage] = useState("");
+  const [stats, setStats] = useState({ citizens: 0, listings: 0, updates: 0, satisfaction: 0 });
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -54,6 +55,25 @@ const Home = ({ apiBase }) => {
     }
   }, [location.hash]);
 
+  useEffect(() => {
+    const targets = { citizens: 12000, listings: 3500, updates: 580, satisfaction: 92 };
+    const start = performance.now();
+    const duration = 1600;
+    const tick = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      setStats({
+        citizens: Math.round(targets.citizens * ease),
+        listings: Math.round(targets.listings * ease),
+        updates: Math.round(targets.updates * ease),
+        satisfaction: Math.round(targets.satisfaction * ease)
+      });
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    const raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   const searchResults = useMemo(() => {
     if (!query.trim()) return [];
     const q = query.toLowerCase();
@@ -70,7 +90,7 @@ const Home = ({ apiBase }) => {
 
   return (
     <main className="page home-page">
-      <section className="hero-section section-light">
+      <section className="hero-section">
         <div className="container hero-layout">
           <div className="hero-content">
             <div className="hero-tag section-label">Trusted Community Marketplace</div>
@@ -86,7 +106,12 @@ const Home = ({ apiBase }) => {
           </div>
           <div className="hero-visual">
             {heroImage && (
-              <img className="hero-image" src={heroImage} alt="Community" loading="lazy" />
+              <img
+                className="hero-image"
+                src={heroImage}
+                alt="Community"
+                loading="lazy"
+              />
             )}
             <div className="floating-card card-a">
               <p>Verified Services</p>
@@ -265,6 +290,13 @@ const Home = ({ apiBase }) => {
               Verified professionals, local services, and trusted vendors in one curated marketplace.
               Find the right support quickly with community-rated insights.
             </p>
+            <div className="about-visual">
+              <img
+                src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80"
+                alt="Community"
+                loading="lazy"
+              />
+            </div>
           </div>
           <div className="stat-grid">
             <div className="card float-card">
@@ -287,6 +319,13 @@ const Home = ({ apiBase }) => {
               <h2>Why Use PUneClass</h2>
             </div>
             <p>Minimal, curated, and trusted community updates.</p>
+          </div>
+          <div className="section-visual">
+            <img
+              src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80"
+              alt="Why us"
+              loading="lazy"
+            />
           </div>
           <div className="services-grid">
             <div className="card">
@@ -319,21 +358,28 @@ const Home = ({ apiBase }) => {
             <div className="section-label">STATS</div>
             <h2>User Statistics</h2>
           </div>
+          <div className="section-visual align-right">
+            <img
+              src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1400&q=80"
+              alt="Stats"
+              loading="lazy"
+            />
+          </div>
           <div className="stats-grid">
             <div className="card">
-              <div className="stat-number">12k+</div>
+              <div className="stat-number">{(stats.citizens / 1000).toFixed(1)}k+</div>
               <p>Active citizens</p>
             </div>
             <div className="card">
-              <div className="stat-number">3.5k</div>
+              <div className="stat-number">{(stats.listings / 1000).toFixed(1)}k</div>
               <p>Verified listings</p>
             </div>
             <div className="card">
-              <div className="stat-number">580</div>
+              <div className="stat-number">{stats.updates}</div>
               <p>Weekly updates</p>
             </div>
             <div className="card">
-              <div className="stat-number">92%</div>
+              <div className="stat-number">{stats.satisfaction}%</div>
               <p>Satisfaction score</p>
             </div>
           </div>
@@ -345,6 +391,13 @@ const Home = ({ apiBase }) => {
           <div className="section-head">
             <div className="section-label">PROCESS</div>
             <h2>How It Works</h2>
+          </div>
+          <div className="section-visual align-left">
+            <img
+              src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1400&q=80"
+              alt="Process"
+              loading="lazy"
+            />
           </div>
           <div className="services-grid">
             <div className="card">
@@ -379,16 +432,46 @@ const Home = ({ apiBase }) => {
           </div>
           <div className="testimonial-grid">
             <div className="testimonial-card">
-              <p>“Premium layout and verified listings make everything feel trustworthy.”</p>
+              <div className="testimonial-avatar">AK</div>
+              <p>"Premium layout and verified listings make everything feel trustworthy."</p>
               <span>- Aditi K.</span>
             </div>
             <div className="testimonial-card">
-              <p>“Posted a service and got approved fast. Super smooth.”</p>
+              <div className="testimonial-avatar">RM</div>
+              <p>"Posted a service and got approved fast. Super smooth."</p>
               <span>- Rahul M.</span>
             </div>
             <div className="testimonial-card">
-              <p>“The government updates section keeps me informed daily.”</p>
+              <div className="testimonial-avatar">SP</div>
+              <p>"The government updates section keeps me informed daily."</p>
               <span>- Sneha P.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="container">
+          <div className="section-head">
+            <div className="section-label">FAQS</div>
+            <h2>Frequently Asked Questions</h2>
+          </div>
+          <div className="faq-grid">
+            <div className="card faq-card">
+              <h4>How are listings verified?</h4>
+              <p>Admins review every submission before it appears publicly.</p>
+            </div>
+            <div className="card faq-card">
+              <h4>How long does approval take?</h4>
+              <p>Most listings are approved within 24 hours.</p>
+            </div>
+            <div className="card faq-card">
+              <h4>Can I edit a post after approval?</h4>
+              <p>Yes, you can edit your posts from the profile menu.</p>
+            </div>
+            <div className="card faq-card">
+              <h4>Is my data secure?</h4>
+              <p>We use JWT authentication and admin approvals for safety.</p>
             </div>
           </div>
         </div>
@@ -398,4 +481,3 @@ const Home = ({ apiBase }) => {
 };
 
 export default Home;
-

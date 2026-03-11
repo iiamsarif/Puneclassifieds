@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 const Navbar = ({ apiBase }) => {
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [categories, setCategories] = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
+  const activeCategory = new URLSearchParams(location.search).get("category") || "";
   const token = localStorage.getItem("token");
   const user = token ? JSON.parse(localStorage.getItem("user") || "{}") : null;
 
@@ -39,6 +41,9 @@ const Navbar = ({ apiBase }) => {
               key={cat._id}
               to={`/posts?category=${encodeURIComponent(cat.name)}`}
               onClick={() => setOpen(false)}
+              className={({ isActive }) =>
+                isActive && activeCategory === cat.name ? "active" : ""
+              }
             >
               {cat.name}
             </NavLink>

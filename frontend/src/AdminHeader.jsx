@@ -18,7 +18,7 @@ const AdminHeader = ({ sidebarOpen, setSidebarOpen }) => {
         </NavLink>
         <div className="admin-header-actions">
           <button className="ghost-btn admin-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
-            {sidebarOpen ? "Close Menu" : "Menu"}
+            Menu
           </button>
           <button className="ghost-btn" onClick={handleLogout}>
             Logout

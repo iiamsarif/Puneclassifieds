@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const fallbackImage = "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80";
@@ -92,6 +92,12 @@ const Posts = ({ apiBase }) => {
   useEffect(() => {
     loadPosts(page);
   }, [page, search, category, location]);
+
+  useEffect(() => {
+    const newCategory = query.get("category") || "";
+    setCategory(newCategory);
+    setPage(1);
+  }, [query.toString()]);
 
   const pageNumbers = useMemo(() => {
     return Array.from({ length: Math.min(pages, 4) }, (_, i) => i + 1);

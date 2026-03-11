@@ -6,6 +6,7 @@ const MyPosts = ({ apiBase }) => {
   const [editOpen, setEditOpen] = useState(false);
   const [status, setStatus] = useState("");
   const [imageReady, setImageReady] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     title: "",
     category: "",
@@ -62,8 +63,10 @@ const MyPosts = ({ apiBase }) => {
       setStatus("Please wait for the image to finish loading.");
       return;
     }
+    const editingId = editing;
+    setSaving(true);
     try {
-      const res = await fetch(`${apiBase}/api/posts/${editing}`, {
+      const res = await fetch(`${apiBase}/api/posts/${editingId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -76,9 +79,11 @@ const MyPosts = ({ apiBase }) => {
       setEditing(null);
       setEditOpen(false);
       setStatus("Updated successfully.");
-      setPosts((prev) => prev.map((post) => (post._id === editing ? { ...post, ...form } : post)));
+      setPosts((prev) => prev.map((post) => (post._id === editingId ? { ...post, ...form } : post)));
     } catch (err) {
       setStatus(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -161,9 +166,20 @@ const MyPosts = ({ apiBase }) => {
               {form.imageData && (
                 <img className="preview-image" src={form.imageData} alt="Preview" />
               )}
-              <button className="primary-btn" type="submit">Save Changes</button>
+              <button className="primary-btn" type="submit" disabled={saving}>
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
             </form>
           </div>
+          {saving && (
+            <div className="loading-overlay">
+              <div className="loading-card">
+                <span className="loader-dot"></span>
+                <span className="loader-dot"></span>
+                <span className="loader-dot"></span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </main>
