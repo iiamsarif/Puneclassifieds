@@ -25,6 +25,7 @@ body {
   color: var(--ink);
   background: #f7f8ff;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 a {
@@ -46,6 +47,11 @@ img {
 
 .page {
   padding: 140px 8vw 80px;
+}
+
+.home-page.page {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .auth-shell .page {
@@ -294,18 +300,16 @@ img {
   padding-bottom: 90px;
   position: relative;
   overflow: hidden;
-  background: url("https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=2000&q=80")
+  background: url("https://images.pexels.com/photos/38639/mockup-psd-ipad-iphone-38639.jpeg?_gl=1*zentsa*_ga*MTM2NDg4Njc4Ny4xNzcyODY2ODE5*_ga_8JE65Q40S6*czE3NzMyMjI0OTAkbzgkZzEkdDE3NzMyMjI3ODkkajU5JGwwJGgw")
     center/cover no-repeat;
   min-height: 520px;
 }
 
 .home-page .hero-section {
-  margin-left: -8vw;
-  margin-right: -8vw;
-  padding-left: 8vw;
-  padding-right: 8vw;
   margin-top: -140px;
   padding-top: 140px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .hero-layout {
@@ -729,7 +733,7 @@ p { font-size: 16px; }
 small { font-size: 13px; }
 
 .home-page section {
-  padding: 120px 20px;
+  padding: 120px 8vw;
 }
 
 .container {
