@@ -9,12 +9,27 @@ const Home = ({ apiBase }) => {
   const [notifications, setNotifications] = useState([]);
   const [categories, setCategories] = useState([]);
   const [posts, setPosts] = useState([]);
+  const [premiumPosts, setPremiumPosts] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
-  const [heroImage, setHeroImage] = useState("");
+  const [heroImage, setHeroImage] = useState(() => {
+    try {
+      return localStorage.getItem("heroImageCache") || "";
+    } catch {
+      return "";
+    }
+  });
+  const [heroBg, setHeroBg] = useState(() => {
+    try {
+      return localStorage.getItem("heroBgCache") || "";
+    } catch {
+      return "";
+    }
+  });
   const [banners, setBanners] = useState({ banner1: "", banner2: "", banner3: "", banner4: "" });
   const [stats, setStats] = useState({ citizens: 0, listings: 0, updates: 0, satisfaction: 0 });
   const [statsStarted, setStatsStarted] = useState(false);
   const statsRef = useRef(null);
+  const categoriesRef = useRef(null);
   const parallaxRef = useRef(null);
   const cleanText = (value) => (value || '').replace(/\\r?\\n/g, ' ').trim();
   const navigate = useNavigate();
@@ -29,16 +44,39 @@ const Home = ({ apiBase }) => {
     }
   });
   const [showCongrats, setShowCongrats] = useState(false);
+  const [testimonialIndex, setTestimonialIndex] = useState(0);
+  const testimonials = [
+    {
+      name: "Aditi K.",
+      role: "Kothrud Resident",
+      quote: "The portal feels curated. I can trust the listings and notices I see.",
+      avatar: "https://images.unsplash.com/photo-1502685104226-ee32379fefbe?auto=format&fit=crop&w=140&q=80"
+    },
+    {
+      name: "Rahul M.",
+      role: "Baner Resident",
+      quote: "Posting a service was smooth and approval was fast. The team is helpful.",
+      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=140&q=80"
+    },
+    {
+      name: "Sneha P.",
+      role: "Shivaji Nagar Resident",
+      quote: "Government updates are concise and easy to download from the same place.",
+      avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=140&q=80"
+    }
+  ];
   const [paymentInfo, setPaymentInfo] = useState(null);
+  const [premiumIndex, setPremiumIndex] = useState(0);
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       try {
-        const [n, g, c, p, settings] = await Promise.all([
+        const [n, g, c, p, premium, settings] = await Promise.all([
           fetch(`${apiBase}/api/news`).then((r) => r.json()),
           fetch(`${apiBase}/api/notifications`).then((r) => r.json()),
           fetch(`${apiBase}/api/categories`).then((r) => r.json()),
           fetch(`${apiBase}/api/posts?status=approved&limit=15`).then((r) => r.json()),
+          fetch(`${apiBase}/api/posts?status=approved&paid=true&limit=6`).then((r) => r.json()),
           fetch(`${apiBase}/api/settings/web`).then((r) => r.json())
         ]);
         if (!mounted) return;
@@ -46,7 +84,21 @@ const Home = ({ apiBase }) => {
         setNotifications(Array.isArray(g) ? g : []);
         setCategories(Array.isArray(c) ? c : []);
         setPosts(p?.items || []);
-        setHeroImage(settings?.heroImage || "");
+        setPremiumPosts(premium?.items || []);
+        const nextHeroImage = settings?.heroImage || "";
+        const nextHeroBg = settings?.heroBg || "";
+        if (nextHeroImage && nextHeroImage !== heroImage) {
+          setHeroImage(nextHeroImage);
+          try {
+            localStorage.setItem("heroImageCache", nextHeroImage);
+          } catch {}
+        }
+        if (nextHeroBg && nextHeroBg !== heroBg) {
+          setHeroBg(nextHeroBg);
+          try {
+            localStorage.setItem("heroBgCache", nextHeroBg);
+          } catch {}
+        }
         setBanners({
           banner1: settings?.banner1 || "",
           banner2: settings?.banner2 || "",
@@ -83,9 +135,17 @@ const Home = ({ apiBase }) => {
   }, [apiBase, token]);
 
   useEffect(() => {
+    if (premiumPosts.length <= 1) return;
+    const timer = setInterval(() => {
+      setPremiumIndex((prev) => (prev + 1) % premiumPosts.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [premiumPosts.length]);
+
+  useEffect(() => {
     const el = parallaxRef.current;
     if (!el) return;
-    const items = el.querySelectorAll("[data-speed]");
+    const items = el.querySelectorAll("[data-speed], .parallax-media");
     let ticking = false;
     const onScroll = () => {
       if (ticking) return;
@@ -95,7 +155,7 @@ const Home = ({ apiBase }) => {
         const view = window.innerHeight || 0;
         const progress = Math.min(Math.max((view - rect.top) / (view + rect.height), 0), 1);
         items.forEach((node) => {
-          const speed = parseFloat(node.getAttribute("data-speed") || "0");
+          const speed = parseFloat(node.getAttribute("data-speed") || "0.6");
           const offset = (progress - 0.5) * speed * 320;
           node.style.transform = `translateY(${offset}px)`;
         });
@@ -130,6 +190,35 @@ const Home = ({ apiBase }) => {
     const raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [statsStarted]);
+
+  const [categoriesVisible, setCategoriesVisible] = useState(false);
+  useEffect(() => {
+    const section = categoriesRef.current;
+    if (!section) return;
+    const reveal = () => {
+      const rect = section.getBoundingClientRect();
+      const inView = rect.top < window.innerHeight * 0.85 && rect.bottom > 0;
+      if (inView && !categoriesVisible) {
+        setCategoriesVisible(true);
+      }
+    };
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setCategoriesVisible(true);
+        }
+      },
+      { threshold: 0.1, rootMargin: "0px 0px -10% 0px" }
+    );
+    observer.observe(section);
+    const onScroll = () => reveal();
+    const onLoad = () => reveal();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    window.addEventListener("load", onLoad);
+    reveal();
+    return () => observer.disconnect();
+  }, [categoriesVisible]);
 
   useEffect(() => {
     const el = statsRef.current;
@@ -269,7 +358,12 @@ const Home = ({ apiBase }) => {
 
   return (
     <main className="page home-page">
-      <section className="hero-section">
+      <section
+        className="hero-section"
+        style={{
+          backgroundImage: heroBg ? `url(${heroBg})` : undefined
+        }}
+      >
         <div className="container hero-layout">
           <div className="hero-content">
             <div className="hero-tag section-label">Trusted Community Marketplace</div>
@@ -309,7 +403,7 @@ const Home = ({ apiBase }) => {
         </div>
       </section>
 
-      <section className="section" id="categories">
+      <section className="section" id="categories" ref={categoriesRef}>
         <div className="container">
           <div className="section-head">
             <div>
@@ -320,7 +414,11 @@ const Home = ({ apiBase }) => {
           </div>
           <div className="services-grid">
             {categories.slice(0, 6).map((cat, idx) => (
-              <div key={cat._id} className="card category-card">
+              <div
+                key={cat._id}
+                className={`card category-card ${categoriesVisible ? "jump-in" : ""}`}
+                style={{ animationDelay: `${idx * 0.12}s` }}
+              >
                 {(cat.iconData || cat.iconUrl) && (
                   <img
                     className="category-icon"
@@ -344,6 +442,60 @@ const Home = ({ apiBase }) => {
           </div>
         </div>
       </section>
+
+      {premiumPosts.length > 0 && (
+        <section className="section premium-posts-section">
+          <div className="container">
+            <div className="section-head">
+              <div>
+                <div className="section-label">PREMIUM</div>
+                <h2>Latest Premium Posts</h2>
+                <p>Exclusive listings from paid members.</p>
+              </div>
+              <div className="premium-nav">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPremiumIndex((prev) => (prev - 1 + premiumPosts.length) % premiumPosts.length)
+                  }
+                >
+                  ←
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPremiumIndex((prev) => (prev + 1) % premiumPosts.length)}
+                >
+                  →
+                </button>
+              </div>
+            </div>
+            <div className="premium-card">
+              <div className="premium-media">
+                <img
+                  src={
+                    (premiumPosts[premiumIndex].imageUrls && premiumPosts[premiumIndex].imageUrls[0]) ||
+                    premiumPosts[premiumIndex].imageUrl ||
+                    premiumPosts[premiumIndex].imageData ||
+                    fallbackHero
+                  }
+                  alt={premiumPosts[premiumIndex].title}
+                />
+              </div>
+              <div className="premium-info">
+                <div className="premium-meta">
+                  <span className="badge">{premiumPosts[premiumIndex].category}</span>
+                  <span className="muted">{premiumPosts[premiumIndex].location || "Premium Listing"}</span>
+                </div>
+                <h3>{premiumPosts[premiumIndex].title}</h3>
+                <p className="clamp-3">{cleanText(premiumPosts[premiumIndex].description)}</p>
+                <NavLink className="ghost-btn" to={`/posts/${premiumPosts[premiumIndex]._id}`}>
+                  Read More →
+                </NavLink>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {banners.banner1 && (
         <section className="section banner-section">
@@ -399,7 +551,7 @@ const Home = ({ apiBase }) => {
         </div>
       </section>
 
-      <section className="section section-light">
+      <section className="section section-light news-section">
         <div className="container">
           <div className="section-head">
             <div>
@@ -471,7 +623,7 @@ const Home = ({ apiBase }) => {
         </div>
       </section>
 
-      <section className="section section-light">
+      <section className="section section-light featured-section">
         <div className="container">
           <div className="section-head">
             <div>
@@ -527,7 +679,7 @@ const Home = ({ apiBase }) => {
               Verified professionals, local services, and trusted vendors in one curated marketplace.
               Find the right support quickly with community-rated insights.
             </p>
-            <div className="about-visual">
+            <div className="about-visual parallax-media" data-speed="0.8">
               <img
                 src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80"
                 alt="Community"
@@ -693,23 +845,46 @@ const Home = ({ apiBase }) => {
             </div>
           </div>
 
-          <div className="testimonial-elegant">
-            <div>
-              <div className="section-label">TESTIMONIALS</div>
-              <h2>What residents value most is the clarity and trust of every listing.</h2>
+          <div className="testimonial-split">
+            <div className="testimonial-left">
+              <div className="testimonial-left-inner">
+                <div className="section-label">OUR TESTIMONIALS</div>
+                <h2>Customers talk about us</h2>
+                <p>Real residents sharing the value of verified community updates.</p>
+              </div>
             </div>
-            <div className="testimonial-grid">
-              <div className="testimonial-card">
-                <p>?The portal feels curated. I can trust the listings and notices I see.?</p>
-                <span>Aditi K. ? Kothrud</span>
+            <div className="testimonial-right">
+              <div className="testimonial-top">
+                <div className="testimonial-person">
+                  <img
+                    src={testimonials[testimonialIndex].avatar}
+                    alt="Resident"
+                  />
+                  <div>
+                    <h4>{testimonials[testimonialIndex].name}</h4>
+                    <span>{testimonials[testimonialIndex].role}</span>
+                  </div>
+                </div>
+                <div className="testimonial-nav">
+                  <button
+                    type="button"
+                    onClick={() => setTestimonialIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length)}
+                  >
+                    ←
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTestimonialIndex((prev) => (prev + 1) % testimonials.length)}
+                  >
+                    →
+                  </button>
+                </div>
               </div>
-              <div className="testimonial-card">
-                <p>?Posting a service was smooth and approval was fast.?</p>
-                <span>Rahul M. ? Baner</span>
-              </div>
-              <div className="testimonial-card">
-                <p>?Government updates are concise and easy to download.?</p>
-                <span>Sneha P. ? Shivaji Nagar</span>
+              <div className="testimonial-quotes">
+                <div key={testimonialIndex} className="testimonial-quote manual-fade">
+                  <span className="quote-mark">“</span>
+                  <p>{testimonials[testimonialIndex].quote}</p>
+                </div>
               </div>
             </div>
           </div>

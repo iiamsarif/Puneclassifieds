@@ -51,6 +51,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [editNoteFile, setEditNoteFile] = useState(null);
   const [settings, setSettings] = useState({
     heroImage: "",
+    heroBg: "",
     contactEmail: "",
     banner1: "",
     banner2: "",
@@ -64,6 +65,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     title: "",
     category: "",
     type: "",
+    paid: false,
     breed: "",
     age: "",
     gender: "",
@@ -244,6 +246,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
           fetchJson(`${apiBase}/api/settings/web`).then((s) =>
             setSettings({
               heroImage: s?.heroImage || "",
+              heroBg: s?.heroBg || "",
               contactEmail: s?.contactEmail || "",
               banner1: s?.banner1 || "",
               banner2: s?.banner2 || "",
@@ -845,6 +848,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       title: post.title || "",
       category: post.category || "",
       type: post.type || "",
+      paid: !!post.paid,
       breed: post.breed || "",
       age: post.age || "",
       gender: post.gender || "",
@@ -883,6 +887,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         title: data.post.title,
         category: data.post.category,
         type: data.post.type || "",
+        paid: !!data.post.paid,
         breed: data.post.breed || "",
         age: data.post.age || "",
         gender: data.post.gender || "",
@@ -938,6 +943,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       formData.append("contactName", editForm.contactName);
       formData.append("phone", editForm.phone);
       formData.append("userEmail", editForm.userEmail || "");
+      formData.append("paid", editForm.paid ? "true" : "false");
       if (editForm.expiresAt) formData.append("expiresAt", new Date(editForm.expiresAt).toISOString());
       formData.append("existingImages", JSON.stringify(editForm.imageUrls || []));
       editImageFiles.forEach((file) => formData.append("images", file));
@@ -1229,6 +1235,14 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 </div>
               )}
               <form className="form-card" onSubmit={saveEdit}>
+                <label className="field-label">Plan Type</label>
+                <select
+                  value={editForm.paid ? "paid" : "free"}
+                  onChange={(e) => setEditForm({ ...editForm, paid: e.target.value === "paid" })}
+                >
+                  <option value="free">Free</option>
+                  <option value="paid">Paid</option>
+                </select>
                 <input
                   type="text"
                   placeholder="Title"
@@ -1961,36 +1975,49 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
               <h2>Web Settings</h2>
             </div>
             <form className="form-card" onSubmit={saveSettings}>
+              <label className="field-label">Hero Background Image URL</label>
+              <input
+                type="text"
+                placeholder="Hero Background Image URL"
+                value={settings.heroBg}
+                onChange={(e) => setSettings({ ...settings, heroBg: e.target.value })}
+              />
+              <label className="field-label">Hero Foreground Image URL</label>
               <input
                 type="text"
                 placeholder="Hero Image URL"
                 value={settings.heroImage}
                 onChange={(e) => setSettings({ ...settings, heroImage: e.target.value })}
               />
+              <label className="field-label">Support / Contact Email</label>
               <input
                 type="email"
                 placeholder="Contact Email"
                 value={settings.contactEmail}
                 onChange={(e) => setSettings({ ...settings, contactEmail: e.target.value })}
               />
+              <label className="field-label">Banner 1 Image URL (Home: below Categories)</label>
               <input
                 type="text"
                 placeholder="Banner 1 Image URL"
                 value={settings.banner1}
                 onChange={(e) => setSettings({ ...settings, banner1: e.target.value })}
               />
+              <label className="field-label">Banner 2 Image URL (News page)</label>
               <input
                 type="text"
                 placeholder="Banner 2 Image URL"
                 value={settings.banner2}
                 onChange={(e) => setSettings({ ...settings, banner2: e.target.value })}
               />
+              <label className="field-label">Banner 3 Image URL (Community Posts page)</label>
               <input
                 type="text"
                 placeholder="Banner 3 Image URL"
                 value={settings.banner3}
                 onChange={(e) => setSettings({ ...settings, banner3: e.target.value })}
               />
+              <label className="field-label">Banner 4 Image URL (Government Notifications page)</label>
               <input
                 type="text"
                 placeholder="Banner 4 Image URL"
