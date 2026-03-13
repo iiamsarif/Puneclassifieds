@@ -92,6 +92,23 @@ const saveWebpImage = async (req, file) => {
   await sharp(file.buffer).webp({ quality: 95 }).toFile(outputPath);
   return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
 };
+const getUploadPath = (url) => {
+  if (!url || typeof url !== "string" || !url.includes("/uploads/")) return null;
+  try {
+    const pathname = new URL(url).pathname || "";
+    if (!pathname.includes("/uploads/")) return null;
+    const rel = pathname.split("/uploads/")[1];
+    return rel ? path.join(uploadDir, rel) : null;
+  } catch {
+    const rel = url.split("/uploads/")[1];
+    return rel ? path.join(uploadDir, rel) : null;
+  }
+};
+const deleteUpload = async (url) => {
+  const filePath = getUploadPath(url);
+  if (!filePath || !fs.existsSync(filePath)) return;
+  await fs.promises.unlink(filePath).catch(() => {});
+};
 let isConnected = false;
 
 app.use("/uploads", express.static(uploadDir));
@@ -379,7 +396,7 @@ app.put("/api/categories/:id", adminMiddleware, maybeImageSingle("icon"), async 
 
 app.get("/api/posts", async (req, res) => {
   const db = await getDb();
-  const { status, category, search, type } = req.query;
+  const { status, category, search, type, paid } = req.query;
   const { location } = req.query;
   const page = parseInt(req.query.page || "1", 10);
   const limit = parseInt(req.query.limit || "6", 10);
@@ -400,6 +417,11 @@ app.get("/api/posts", async (req, res) => {
   }
   if (type) {
     and.push({ type: { $regex: `^${escapeRegex(type)}$`, $options: "i" } });
+  }
+  if (paid === "true") {
+    and.push({ paid: true });
+  } else if (paid === "false") {
+    and.push({ $or: [{ paid: { $exists: false } }, { paid: false }] });
   }
   if (location) and.push({ location });
   if (search) {
@@ -528,6 +550,7 @@ app.post("/api/posts", authMiddleware, maybeImageArray("images", 5), async (req,
     imageUrls,
     imageUrl: imageUrls[0] || "",
     imageData: "",
+    paid: isPaid,
     status: "pending",
     createdAt: now,
     expiresAt: isPaid ? null : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
@@ -559,6 +582,11 @@ app.put("/api/posts/:id", authMiddleware, maybeImageArray("images", 5), async (r
     return res.status(400).json({ message: `Description exceeds ${maxWords} words.` });
   }
   const existingImages = parseList(req.body.existingImages);
+  const currentImages = Array.isArray(item[0].imageUrls) && item[0].imageUrls.length
+    ? item[0].imageUrls
+    : (item[0].imageUrl ? [item[0].imageUrl] : []);
+  const removedImages = currentImages.filter((url) => !existingImages.includes(url));
+  await Promise.all(removedImages.map((url) => deleteUpload(url)));
   const files = Array.isArray(req.files) ? req.files : [];
   if (existingImages.length + files.length > maxImages) {
     return res.status(400).json({ message: `You can upload up to ${maxImages} images.` });
@@ -574,8 +602,10 @@ app.put("/api/posts/:id", authMiddleware, maybeImageArray("images", 5), async (r
     const parsed = new Date(expiresAt);
     expiresAt = Number.isNaN(parsed.getTime()) ? null : parsed;
   }
+  const paid = req.body.paid === "true" ? true : req.body.paid === "false" ? false : (item[0].paid || isPaid);
   const payload = {
     ...req.body,
+    paid,
     expiresAt,
     imageUrls,
     imageUrl: imageUrls[0] || "",
@@ -593,6 +623,11 @@ app.put("/api/admin/posts/:id", adminMiddleware, maybeImageArray("images", 5), a
   const existing = await db.collection("posts").find({ _id: new ObjectId(req.params.id) }).toArray();
   const current = existing[0] || {};
   const existingImages = parseList(req.body.existingImages);
+  const currentImages = Array.isArray(current.imageUrls) && current.imageUrls.length
+    ? current.imageUrls
+    : (current.imageUrl ? [current.imageUrl] : []);
+  const removedImages = currentImages.filter((url) => !existingImages.includes(url));
+  await Promise.all(removedImages.map((url) => deleteUpload(url)));
   const files = Array.isArray(req.files) ? req.files : [];
   const newUrls = [];
   for (const file of files) {
@@ -605,8 +640,10 @@ app.put("/api/admin/posts/:id", adminMiddleware, maybeImageArray("images", 5), a
     const parsed = new Date(expiresAt);
     expiresAt = Number.isNaN(parsed.getTime()) ? null : parsed;
   }
+  const paid = req.body.paid === "true" ? true : req.body.paid === "false" ? false : (current.paid || false);
   const payload = {
     ...req.body,
+    paid,
     expiresAt,
     imageUrls,
     imageUrl: imageUrls[0] || current.imageUrl || "",
@@ -666,6 +703,7 @@ app.get("/api/settings/web", async (req, res) => {
   }
   return res.json({
     heroImage: web.heroImage || "",
+    heroBg: web.heroBg || "",
     contactEmail: web.contactEmail || "",
     banner1: web.banner1 || "",
     banner2: web.banner2 || "",
@@ -682,6 +720,7 @@ app.put("/api/settings/web", adminMiddleware, async (req, res) => {
       $set: {
         key: "web",
         heroImage: req.body.heroImage || "",
+        heroBg: req.body.heroBg || "",
         contactEmail: req.body.contactEmail || "",
         banner1: req.body.banner1 || "",
         banner2: req.body.banner2 || "",
