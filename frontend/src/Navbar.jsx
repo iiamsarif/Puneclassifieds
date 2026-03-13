@@ -152,7 +152,7 @@ const Navbar = ({ apiBase }) => {
               </div>
             );
           })}
-          <NavLink to="/notifications" onClick={() => setOpen(false)}>Government Notifications</NavLink>
+          <NavLink to="/notifications" onClick={() => setOpen(false)}>Government</NavLink>
           <NavLink to="/contact" onClick={() => setOpen(false)}>Contact</NavLink>
         </nav>
         <div className="nav-actions">

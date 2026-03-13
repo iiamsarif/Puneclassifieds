@@ -2406,7 +2406,7 @@ small { font-size: 13px; }
   50% { opacity: 1; }
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1260px) {
   .navbar-inner {
     padding: 16px 6vw;
   }
@@ -2837,7 +2837,7 @@ small { font-size: 13px; }
   }
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1260px) {
   .navbar.scrolled .nav-links {
     color: var(--muted);
   }
