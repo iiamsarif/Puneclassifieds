@@ -5,7 +5,9 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const multer = require("multer");
+const sharp = require("sharp");
 const { MongoClient, ObjectId } = require("mongodb");
 
 dotenv.config();
@@ -18,7 +20,35 @@ app.use(express.json({ limit: "25mb" }));
 const uri = process.env.MONGODB_URI;
 const dbName = process.env.DB_NAME || "community_portal";
 const jwtSecret = process.env.JWT_SECRET || "secret";
+const razorpayKeyId = process.env.RAZORPAY_KEY_ID || "rzp_test_SQHLLEV5FDWHor";
+const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || "bocNb5CJgijW795LHBuytf6w";
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const parseList = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return String(value)
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+  }
+};
+const parseTypes = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return String(value)
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+  }
+};
 
 const client = new MongoClient(uri);
 const uploadDir = path.join(__dirname, "uploads");
@@ -32,15 +62,36 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } });
-const maybeUpload = (field) => (req, res, next) => {
+const pdfUpload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } });
+const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+const maybePdfSingle = (field) => (req, res, next) => {
   if (req.is("multipart/form-data")) {
-    return upload.single(field)(req, res, next);
+    return pdfUpload.single(field)(req, res, next);
+  }
+  return next();
+};
+const maybeImageSingle = (field) => (req, res, next) => {
+  if (req.is("multipart/form-data")) {
+    return imageUpload.single(field)(req, res, next);
+  }
+  return next();
+};
+const maybeImageArray = (field, max) => (req, res, next) => {
+  if (req.is("multipart/form-data")) {
+    return imageUpload.array(field, max)(req, res, next);
   }
   return next();
 };
 const fileUrl = (req, file) =>
   file ? `${req.protocol}://${req.get("host")}/uploads/${file.filename}` : "";
+const saveWebpImage = async (req, file) => {
+  if (!file || !file.buffer) return "";
+  const baseName = (path.parse(file.originalname || "image").name || "image").replace(/\s+/g, "-");
+  const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${baseName}.webp`;
+  const outputPath = path.join(uploadDir, filename);
+  await sharp(file.buffer).webp({ quality: 95 }).toFile(outputPath);
+  return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
+};
 let isConnected = false;
 
 app.use("/uploads", express.static(uploadDir));
@@ -95,7 +146,14 @@ app.post("/api/auth/signup", async (req, res) => {
     return res.status(409).json({ message: "Email already registered" });
   }
   const hash = await bcrypt.hash(password, 10);
-  await db.collection("users").insertOne({ name, email, password: hash, createdAt: new Date() });
+  await db.collection("users").insertOne({
+    name,
+    email,
+    password: hash,
+    paid: false,
+    paidUntil: null,
+    createdAt: new Date()
+  });
   return res.json({ message: "Signup successful" });
 });
 
@@ -109,7 +167,16 @@ app.post("/api/auth/login", async (req, res) => {
   const match = await bcrypt.compare(password, user.password);
   if (!match) return res.status(401).json({ message: "Invalid credentials" });
   const token = jwt.sign({ id: user._id, email: user.email }, jwtSecret, { expiresIn: "7d" });
-  return res.json({ token, user: { id: user._id, name: user.name, email: user.email } });
+  return res.json({
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      paid: !!user.paid,
+      paidUntil: user.paidUntil || null
+    }
+  });
 });
 
 app.post("/api/admin/login", async (req, res) => {
@@ -167,9 +234,9 @@ app.put("/api/pets/:id/approve", adminMiddleware, approveItem("pets"));
 app.delete("/api/pets/:id", adminMiddleware, deleteItem("pets"));
 
 app.get("/api/news", listItems("news"));
-app.post("/api/news", adminMiddleware, maybeUpload("image"), async (req, res) => {
+app.post("/api/news", adminMiddleware, maybeImageSingle("image"), async (req, res) => {
   const db = await getDb();
-  const imageUrl = fileUrl(req, req.file) || (req.body.image || "");
+  const imageUrl = (await saveWebpImage(req, req.file)) || (req.body.image || "");
   const payload = {
     title: req.body.title,
     category: req.body.category,
@@ -187,6 +254,26 @@ app.get("/api/news/:id", async (req, res) => {
   const item = await db.collection("news").find({ _id: new ObjectId(req.params.id) }).toArray();
   return res.json(item[0]);
 });
+app.put("/api/news/:id", adminMiddleware, maybeImageSingle("image"), async (req, res) => {
+  const db = await getDb();
+  const existing = await db.collection("news").find({ _id: new ObjectId(req.params.id) }).toArray();
+  const current = existing[0] || {};
+  const imageUrl = (await saveWebpImage(req, req.file)) || req.body.image || current.image || "";
+  const payload = {
+    title: req.body.title || current.title,
+    category: req.body.category || current.category,
+    description: req.body.description || current.description,
+    image: imageUrl,
+    imageData: imageUrl ? "" : (req.body.imageData || current.imageData || ""),
+    date: req.body.date || current.date,
+    updatedAt: new Date()
+  };
+  await db.collection("news").updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: payload }
+  );
+  return res.json({ message: "News updated" });
+});
 app.delete("/api/news/:id", adminMiddleware, async (req, res) => {
   const db = await getDb();
   await db.collection("news").deleteOne({ _id: new ObjectId(req.params.id) });
@@ -194,7 +281,7 @@ app.delete("/api/news/:id", adminMiddleware, async (req, res) => {
 });
 
 app.get("/api/notifications", listItems("notifications"));
-app.post("/api/notifications", adminMiddleware, maybeUpload("pdf"), async (req, res) => {
+app.post("/api/notifications", adminMiddleware, maybePdfSingle("pdf"), async (req, res) => {
   const db = await getDb();
   const pdfUrl = fileUrl(req, req.file) || (req.body.pdfFile || "");
   const payload = {
@@ -214,6 +301,26 @@ app.get("/api/notifications/:id", async (req, res) => {
   const item = await db.collection("notifications").find({ _id: new ObjectId(req.params.id) }).toArray();
   return res.json(item[0]);
 });
+app.put("/api/notifications/:id", adminMiddleware, maybePdfSingle("pdf"), async (req, res) => {
+  const db = await getDb();
+  const existing = await db.collection("notifications").find({ _id: new ObjectId(req.params.id) }).toArray();
+  const current = existing[0] || {};
+  const pdfUrl = fileUrl(req, req.file) || req.body.pdfFile || current.pdfFile || "";
+  const payload = {
+    title: req.body.title || current.title,
+    description: req.body.description || current.description,
+    category: req.body.category || current.category,
+    pdfFile: pdfUrl,
+    pdfData: pdfUrl ? "" : (req.body.pdfData || current.pdfData || ""),
+    notificationDate: req.body.notificationDate || current.notificationDate,
+    updatedAt: new Date()
+  };
+  await db.collection("notifications").updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: payload }
+  );
+  return res.json({ message: "Notification updated" });
+});
 app.delete("/api/notifications/:id", adminMiddleware, async (req, res) => {
   const db = await getDb();
   await db.collection("notifications").deleteOne({ _id: new ObjectId(req.params.id) });
@@ -226,14 +333,16 @@ app.get("/api/categories", async (req, res) => {
   return res.json(items);
 });
 
-app.post("/api/categories", adminMiddleware, maybeUpload("icon"), async (req, res) => {
+app.post("/api/categories", adminMiddleware, maybeImageSingle("icon"), async (req, res) => {
   const db = await getDb();
-  const iconUrl = fileUrl(req, req.file) || (req.body.iconUrl || "");
+  const iconUrl = (await saveWebpImage(req, req.file)) || (req.body.iconUrl || "");
+  const types = parseTypes(req.body.types);
   const payload = {
     name: req.body.name,
     description: req.body.description || "",
     iconUrl,
     iconData: iconUrl ? "" : (req.body.iconData || ""),
+    types,
     createdAt: new Date()
   };
   const result = await db.collection("categories").insertOne(payload);
@@ -246,11 +355,12 @@ app.delete("/api/categories/:id", adminMiddleware, async (req, res) => {
   return res.json({ message: "Category deleted" });
 });
 
-app.put("/api/categories/:id", adminMiddleware, maybeUpload("icon"), async (req, res) => {
+app.put("/api/categories/:id", adminMiddleware, maybeImageSingle("icon"), async (req, res) => {
   const db = await getDb();
   const existing = await db.collection("categories").find({ _id: new ObjectId(req.params.id) }).toArray();
   const current = existing[0] || {};
-  const iconUrl = fileUrl(req, req.file) || req.body.iconUrl || current.iconUrl || "";
+  const iconUrl = (await saveWebpImage(req, req.file)) || req.body.iconUrl || current.iconUrl || "";
+  const types = parseTypes(req.body.types);
   await db.collection("categories").updateOne(
     { _id: new ObjectId(req.params.id) },
     {
@@ -259,6 +369,7 @@ app.put("/api/categories/:id", adminMiddleware, maybeUpload("icon"), async (req,
         description: req.body.description || "",
         iconUrl,
         iconData: iconUrl ? "" : (req.body.iconData || current.iconData || ""),
+        types,
         updatedAt: new Date()
       }
     }
@@ -268,22 +379,38 @@ app.put("/api/categories/:id", adminMiddleware, maybeUpload("icon"), async (req,
 
 app.get("/api/posts", async (req, res) => {
   const db = await getDb();
-  const { status, category, search } = req.query;
+  const { status, category, search, type } = req.query;
   const { location } = req.query;
   const page = parseInt(req.query.page || "1", 10);
   const limit = parseInt(req.query.limit || "6", 10);
-  const query = {};
-  if (status) query.status = status;
+  const and = [];
+  if (status) and.push({ status });
+  if (status === "approved") {
+    const now = new Date();
+    and.push({
+      $or: [
+        { expiresAt: { $exists: false } },
+        { expiresAt: null },
+        { expiresAt: { $gte: now } }
+      ]
+    });
+  }
   if (category) {
-    query.category = { $regex: `^${escapeRegex(category)}$`, $options: "i" };
+    and.push({ category: { $regex: `^${escapeRegex(category)}$`, $options: "i" } });
   }
-  if (location) query.location = location;
+  if (type) {
+    and.push({ type: { $regex: `^${escapeRegex(type)}$`, $options: "i" } });
+  }
+  if (location) and.push({ location });
   if (search) {
-    query.$or = [
-      { title: { $regex: search, $options: "i" } },
-      { description: { $regex: search, $options: "i" } }
-    ];
+    and.push({
+      $or: [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } }
+      ]
+    });
   }
+  const query = and.length ? { $and: and } : {};
   const total = await db.collection("posts").find(query).toArray();
   const items = await db
     .collection("posts")
@@ -322,7 +449,15 @@ app.get("/api/admin/posts/:id/details", adminMiddleware, async (req, res) => {
   let user = null;
   if (post.userId && ObjectId.isValid(post.userId)) {
     const users = await db.collection("users").find({ _id: new ObjectId(post.userId) }).toArray();
-    user = users[0] ? { name: users[0].name, email: users[0].email } : null;
+    user = users[0]
+      ? { name: users[0].name, email: users[0].email, paid: !!users[0].paid, paidUntil: users[0].paidUntil || null }
+      : null;
+  }
+  if (!user && post.userEmail) {
+    const users = await db.collection("users").find({ email: post.userEmail }).toArray();
+    user = users[0]
+      ? { name: users[0].name, email: users[0].email, paid: !!users[0].paid, paidUntil: users[0].paidUntil || null }
+      : null;
   }
   return res.json({ post, user });
 });
@@ -335,28 +470,75 @@ app.get("/api/my-posts", authMiddleware, async (req, res) => {
   return res.json(items);
 });
 
-app.post("/api/posts", authMiddleware, maybeUpload("image"), async (req, res) => {
-  const imageUrl = fileUrl(req, req.file) || (req.body.imageUrl || "");
+app.post("/api/posts", authMiddleware, maybeImageArray("images", 5), async (req, res) => {
+  const db = await getDb();
+  const users = await db.collection("users").find({ _id: new ObjectId(req.user.id) }).toArray();
+  const user = users[0];
+  const now = new Date();
+  const isPaid = !!(user?.paid && user?.paidUntil && new Date(user.paidUntil) > now);
+  const maxImages = isPaid ? 5 : 3;
+  const maxWords = isPaid ? 350 : 150;
+
+  if (isPaid) {
+    const startDay = new Date(now);
+    startDay.setHours(0, 0, 0, 0);
+    const postsToday = await db.collection("posts").countDocuments({
+      userId: req.user.id,
+      createdAt: { $gte: startDay }
+    });
+    if (postsToday >= 50) {
+      return res.status(400).json({ message: "Daily post limit reached (50)." });
+    }
+  }
+
+  const description = req.body.description || "";
+  const wordCount = description.trim().split(/\s+/).filter(Boolean).length;
+  if (wordCount > maxWords) {
+    return res.status(400).json({ message: `Description exceeds ${maxWords} words.` });
+  }
+
+  const files = Array.isArray(req.files) ? req.files : [];
+  if (files.length > maxImages) {
+    return res.status(400).json({ message: `You can upload up to ${maxImages} images.` });
+  }
+
+  const imageUrls = [];
+  for (const file of files) {
+    const url = await saveWebpImage(req, file);
+    if (url) imageUrls.push(url);
+  }
+
   const payload = {
     title: req.body.title,
     category: req.body.category,
+    type: req.body.type || "",
     location: req.body.location || "",
-    description: req.body.description,
+    description,
     contactName: req.body.contactName,
     phone: req.body.phone,
-    imageUrl,
-    imageData: imageUrl ? "" : (req.body.imageData || ""),
+    breed: req.body.breed || "",
+    age: req.body.age || "",
+    gender: req.body.gender || "",
+    size: req.body.size || "",
+    vaccinationStatus: req.body.vaccinationStatus || "",
+    medicalHistory: req.body.medicalHistory || "",
+    temperament: req.body.temperament || "",
+    adoptionConditions: req.body.adoptionConditions || "",
+    contactDetails: req.body.contactDetails || "",
+    imageUrls,
+    imageUrl: imageUrls[0] || "",
+    imageData: "",
     status: "pending",
-    createdAt: new Date(),
+    createdAt: now,
+    expiresAt: isPaid ? null : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
     userId: req.user.id,
     userEmail: req.user.email || ""
   };
-  const db = await getDb();
   await db.collection("posts").insertOne(payload);
   return res.json({ message: "Submitted" });
 });
 
-app.put("/api/posts/:id", authMiddleware, maybeUpload("image"), async (req, res) => {
+app.put("/api/posts/:id", authMiddleware, maybeImageArray("images", 5), async (req, res) => {
   const db = await getDb();
   const item = await db.collection("posts").find({ _id: new ObjectId(req.params.id) }).toArray();
   if (!item[0]) return res.status(404).json({ message: "Not found" });
@@ -365,11 +547,39 @@ app.put("/api/posts/:id", authMiddleware, maybeUpload("image"), async (req, res)
   if (!ownsById && !ownsByEmail) {
     return res.status(403).json({ message: "Forbidden" });
   }
-  const imageUrl = fileUrl(req, req.file) || req.body.imageUrl || item[0].imageUrl || "";
+  const users = await db.collection("users").find({ _id: new ObjectId(req.user.id) }).toArray();
+  const user = users[0];
+  const now = new Date();
+  const isPaid = !!(user?.paid && user?.paidUntil && new Date(user.paidUntil) > now);
+  const maxImages = isPaid ? 5 : 3;
+  const maxWords = isPaid ? 350 : 150;
+  const description = req.body.description || item[0].description || "";
+  const wordCount = description.trim().split(/\s+/).filter(Boolean).length;
+  if (wordCount > maxWords) {
+    return res.status(400).json({ message: `Description exceeds ${maxWords} words.` });
+  }
+  const existingImages = parseList(req.body.existingImages);
+  const files = Array.isArray(req.files) ? req.files : [];
+  if (existingImages.length + files.length > maxImages) {
+    return res.status(400).json({ message: `You can upload up to ${maxImages} images.` });
+  }
+  const newUrls = [];
+  for (const file of files) {
+    const url = await saveWebpImage(req, file);
+    if (url) newUrls.push(url);
+  }
+  const imageUrls = [...existingImages, ...newUrls];
+  let expiresAt = req.body.expiresAt || null;
+  if (expiresAt) {
+    const parsed = new Date(expiresAt);
+    expiresAt = Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
   const payload = {
     ...req.body,
-    imageUrl,
-    imageData: imageUrl ? "" : (req.body.imageData || item[0].imageData || "")
+    expiresAt,
+    imageUrls,
+    imageUrl: imageUrls[0] || "",
+    imageData: ""
   };
   await db.collection("posts").updateOne(
     { _id: new ObjectId(req.params.id) },
@@ -378,15 +588,29 @@ app.put("/api/posts/:id", authMiddleware, maybeUpload("image"), async (req, res)
   return res.json({ message: "Updated" });
 });
 
-app.put("/api/admin/posts/:id", adminMiddleware, maybeUpload("image"), async (req, res) => {
+app.put("/api/admin/posts/:id", adminMiddleware, maybeImageArray("images", 5), async (req, res) => {
   const db = await getDb();
   const existing = await db.collection("posts").find({ _id: new ObjectId(req.params.id) }).toArray();
   const current = existing[0] || {};
-  const imageUrl = fileUrl(req, req.file) || req.body.imageUrl || current.imageUrl || "";
+  const existingImages = parseList(req.body.existingImages);
+  const files = Array.isArray(req.files) ? req.files : [];
+  const newUrls = [];
+  for (const file of files) {
+    const url = await saveWebpImage(req, file);
+    if (url) newUrls.push(url);
+  }
+  const imageUrls = [...existingImages, ...newUrls].filter(Boolean);
+  let expiresAt = req.body.expiresAt || null;
+  if (expiresAt) {
+    const parsed = new Date(expiresAt);
+    expiresAt = Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
   const payload = {
     ...req.body,
-    imageUrl,
-    imageData: imageUrl ? "" : (req.body.imageData || current.imageData || "")
+    expiresAt,
+    imageUrls,
+    imageUrl: imageUrls[0] || current.imageUrl || "",
+    imageData: ""
   };
   await db.collection("posts").updateOne(
     { _id: new ObjectId(req.params.id) },
@@ -398,6 +622,40 @@ app.put("/api/admin/posts/:id", adminMiddleware, maybeUpload("image"), async (re
 app.put("/api/posts/:id/approve", adminMiddleware, approveItem("posts"));
 app.delete("/api/posts/:id", adminMiddleware, deleteItem("posts"));
 
+app.put("/api/admin/posts/:id/approve", adminMiddleware, async (req, res) => {
+  const db = await getDb();
+  const posts = await db.collection("posts").find({ _id: new ObjectId(req.params.id) }).toArray();
+  const post = posts[0];
+  if (!post) return res.status(404).json({ message: "Not found" });
+  let user = null;
+  if (post.userId && ObjectId.isValid(post.userId)) {
+    const users = await db.collection("users").find({ _id: new ObjectId(post.userId) }).toArray();
+    user = users[0] || null;
+  } else if (post.userEmail) {
+    const users = await db.collection("users").find({ email: post.userEmail }).toArray();
+    user = users[0] || null;
+  }
+  const isPaid = !!(user?.paid && user?.paidUntil && new Date(user.paidUntil) > new Date());
+  let expiresAt = post.expiresAt || null;
+  if (req.body.expiresAt) {
+    expiresAt = new Date(req.body.expiresAt);
+  }
+  if (isPaid && !expiresAt) {
+    return res.status(400).json({ message: "Expiry date required for paid users." });
+  }
+  await db.collection("posts").updateOne(
+    { _id: new ObjectId(req.params.id) },
+    {
+      $set: {
+        status: "approved",
+        approvedAt: new Date(),
+        expiresAt: expiresAt || null
+      }
+    }
+  );
+  return res.json({ message: "Approved" });
+});
+
 app.get("/api/settings/web", async (req, res) => {
   const db = await getDb();
   const settings = await db.collection("settings").find({ key: "web" }).toArray();
@@ -406,7 +664,14 @@ app.get("/api/settings/web", async (req, res) => {
     const legacy = await db.collection("settings").find({ key: "hero" }).toArray();
     web = legacy[0] || {};
   }
-  return res.json({ heroImage: web.heroImage || "", contactEmail: web.contactEmail || "" });
+  return res.json({
+    heroImage: web.heroImage || "",
+    contactEmail: web.contactEmail || "",
+    banner1: web.banner1 || "",
+    banner2: web.banner2 || "",
+    banner3: web.banner3 || "",
+    banner4: web.banner4 || ""
+  });
 });
 
 app.put("/api/settings/web", adminMiddleware, async (req, res) => {
@@ -418,6 +683,10 @@ app.put("/api/settings/web", adminMiddleware, async (req, res) => {
         key: "web",
         heroImage: req.body.heroImage || "",
         contactEmail: req.body.contactEmail || "",
+        banner1: req.body.banner1 || "",
+        banner2: req.body.banner2 || "",
+        banner3: req.body.banner3 || "",
+        banner4: req.body.banner4 || "",
         updatedAt: new Date()
       }
     },
@@ -428,13 +697,21 @@ app.put("/api/settings/web", adminMiddleware, async (req, res) => {
 
 app.get("/api/admin/pending", adminMiddleware, async (req, res) => {
   const db = await getDb();
-  const [jobs, properties, pets, posts] = await Promise.all([
+  const [jobs, properties, pets, posts, users] = await Promise.all([
     db.collection("jobs").find({ status: "pending" }).sort({ createdAt: -1 }).toArray(),
     db.collection("properties").find({ status: "pending" }).sort({ createdAt: -1 }).toArray(),
     db.collection("pets").find({ status: "pending" }).sort({ createdAt: -1 }).toArray(),
-    db.collection("posts").find({ status: "pending" }).sort({ createdAt: -1 }).toArray()
+    db.collection("posts").find({ status: "pending" }).sort({ createdAt: -1 }).toArray(),
+    db.collection("users").find({}, { projection: { password: 0 } }).toArray()
   ]);
-  return res.json({ jobs, properties, pets, posts });
+  const userMapById = new Map(users.map((u) => [String(u._id), u]));
+  const userMapByEmail = new Map(users.map((u) => [u.email, u]));
+  const enrichedPosts = posts.map((post) => {
+    const user = userMapById.get(String(post.userId)) || userMapByEmail.get(post.userEmail) || null;
+    const isPaidUser = !!(user?.paid && user?.paidUntil && new Date(user.paidUntil) > new Date());
+    return { ...post, isPaidUser, paidUntil: user?.paidUntil || null };
+  });
+  return res.json({ jobs, properties, pets, posts: enrichedPosts });
 });
 
 app.get("/api/admin/approved", adminMiddleware, async (req, res) => {
@@ -452,6 +729,25 @@ app.get("/api/admin/users", adminMiddleware, async (req, res) => {
   const db = await getDb();
   const users = await db.collection("users").find({}, { projection: { password: 0 } }).toArray();
   return res.json(users);
+});
+
+app.put("/api/admin/users/:id", adminMiddleware, async (req, res) => {
+  const db = await getDb();
+  const { name, email, paid, paidUntil } = req.body;
+  const payload = {
+    updatedAt: new Date()
+  };
+  if (name !== undefined) payload.name = name;
+  if (email !== undefined) payload.email = email;
+  if (paid !== undefined) payload.paid = !!paid;
+  if (paidUntil !== undefined) {
+    payload.paidUntil = paidUntil ? new Date(paidUntil) : null;
+  }
+  await db.collection("users").updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: payload }
+  );
+  return res.json({ message: "User updated" });
 });
 
 app.post("/api/search-log", async (req, res) => {
@@ -477,6 +773,65 @@ app.get("/api/admin/trending", adminMiddleware, async (req, res) => {
   return res.json(items);
 });
 
+app.post("/api/payments/create-order", authMiddleware, async (req, res) => {
+  try {
+    const amount = 35000;
+    const payload = {
+      amount,
+      currency: "INR",
+      receipt: `puneclass_${Date.now()}`,
+      payment_capture: 1
+    };
+    const auth = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString("base64");
+    const response = await fetch("https://api.razorpay.com/v1/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Basic ${auth}`
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(400).json({ message: data.error?.description || "Order creation failed" });
+    }
+    return res.json({ order: data, keyId: razorpayKeyId });
+  } catch (err) {
+    return res.status(500).json({ message: "Payment order failed" });
+  }
+});
+
+app.post("/api/payments/verify", authMiddleware, async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    return res.status(400).json({ message: "Missing payment verification details" });
+  }
+  const generated = crypto
+    .createHmac("sha256", razorpayKeySecret)
+    .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+    .digest("hex");
+  if (generated !== razorpay_signature) {
+    return res.status(400).json({ message: "Payment verification failed" });
+  }
+  const db = await getDb();
+  const paidUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  await db.collection("users").updateOne(
+    { _id: new ObjectId(req.user.id) },
+    { $set: { paid: true, paidUntil, updatedAt: new Date() } }
+  );
+  await db.collection("payments").insertOne({
+    userId: req.user.id,
+    email: req.user.email,
+    amount: 350,
+    currency: "INR",
+    orderId: razorpay_order_id,
+    paymentId: razorpay_payment_id,
+    paidUntil,
+    createdAt: new Date()
+  });
+  return res.json({ message: "Payment verified", paidUntil });
+});
+
 app.delete("/api/admin/users/:id", adminMiddleware, async (req, res) => {
   const db = await getDb();
   await db.collection("users").deleteOne({ _id: new ObjectId(req.params.id) });
@@ -485,6 +840,30 @@ app.delete("/api/admin/users/:id", adminMiddleware, async (req, res) => {
 
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
+});
+
+app.get("/api/me", authMiddleware, async (req, res) => {
+  const db = await getDb();
+  const users = await db.collection("users").find({ _id: new ObjectId(req.user.id) }).toArray();
+  const user = users[0];
+  if (!user) return res.status(404).json({ message: "User not found" });
+  return res.json({
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    paid: !!user.paid,
+    paidUntil: user.paidUntil || null
+  });
+});
+
+app.get("/api/me/payments", authMiddleware, async (req, res) => {
+  const db = await getDb();
+  const items = await db
+    .collection("payments")
+    .find({ userId: req.user.id })
+    .sort({ createdAt: -1 })
+    .toArray();
+  return res.json(items);
 });
 
 const port = process.env.PORT || 5000;
