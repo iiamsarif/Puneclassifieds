@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 
 const fallbackHero = "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80";
@@ -9,13 +9,27 @@ const Home = ({ apiBase }) => {
   const [notifications, setNotifications] = useState([]);
   const [categories, setCategories] = useState([]);
   const [posts, setPosts] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
   const [heroImage, setHeroImage] = useState("");
+  const [banners, setBanners] = useState({ banner1: "", banner2: "", banner3: "", banner4: "" });
   const [stats, setStats] = useState({ citizens: 0, listings: 0, updates: 0, satisfaction: 0 });
   const [statsStarted, setStatsStarted] = useState(false);
   const statsRef = useRef(null);
+  const parallaxRef = useRef(null);
   const cleanText = (value) => (value || '').replace(/\\r?\\n/g, ' ').trim();
   const navigate = useNavigate();
   const location = useLocation();
+  const token = localStorage.getItem("token");
+  const [user, setUser] = useState(() => {
+    if (!token) return null;
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return null;
+    }
+  });
+  const [showCongrats, setShowCongrats] = useState(false);
+  const [paymentInfo, setPaymentInfo] = useState(null);
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -33,6 +47,12 @@ const Home = ({ apiBase }) => {
         setCategories(Array.isArray(c) ? c : []);
         setPosts(p?.items || []);
         setHeroImage(settings?.heroImage || "");
+        setBanners({
+          banner1: settings?.banner1 || "",
+          banner2: settings?.banner2 || "",
+          banner3: settings?.banner3 || "",
+          banner4: settings?.banner4 || ""
+        });
       } catch (err) {
         console.error(err);
       }
@@ -47,6 +67,49 @@ const Home = ({ apiBase }) => {
       window.removeEventListener("focus", handleFocus);
     };
   }, [apiBase]);
+
+  useEffect(() => {
+    if (!token || !apiBase) return;
+    fetch(`${apiBase}/api/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.email) {
+          localStorage.setItem("user", JSON.stringify(data));
+          setUser(data);
+          window.dispatchEvent(new Event("user-updated"));
+        }
+      })
+      .catch(console.error);
+  }, [apiBase, token]);
+
+  useEffect(() => {
+    const el = parallaxRef.current;
+    if (!el) return;
+    const items = el.querySelectorAll("[data-speed]");
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const rect = el.getBoundingClientRect();
+        const view = window.innerHeight || 0;
+        const progress = Math.min(Math.max((view - rect.top) / (view + rect.height), 0), 1);
+        items.forEach((node) => {
+          const speed = parseFloat(node.getAttribute("data-speed") || "0");
+          const offset = (progress - 0.5) * speed * 320;
+          node.style.transform = `translateY(${offset}px)`;
+        });
+        ticking = false;
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
 
   useEffect(() => {
     if (!statsStarted) return;
@@ -84,15 +147,121 @@ const Home = ({ apiBase }) => {
     return () => observer.disconnect();
   }, []);
 
-  const searchResults = useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    const matchesPost = (item) =>
-      [item.title, item.category, item.description]
-        .filter(Boolean)
-        .some((field) => field.toLowerCase().includes(q));
-    return posts.filter(matchesPost).slice(0, 8);
-  }, [query, news, posts, notifications]);
+  useEffect(() => {
+    const syncUser = () => {
+      try {
+        const next = localStorage.getItem("user");
+        setUser(next ? JSON.parse(next) : null);
+      } catch {
+        setUser(null);
+      }
+    };
+    window.addEventListener("storage", syncUser);
+    window.addEventListener("user-updated", syncUser);
+    return () => {
+      window.removeEventListener("storage", syncUser);
+      window.removeEventListener("user-updated", syncUser);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (location.hash === "#pricing") {
+      const section = document.getElementById("pricing");
+      if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [location.hash]);
+
+  const loadRazorpay = () =>
+    new Promise((resolve) => {
+      if (window.Razorpay) return resolve(true);
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+
+  const handlePurchase = async () => {
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    const ready = await loadRazorpay();
+    if (!ready) {
+      alert("Payment system failed to load.");
+      return;
+    }
+    try {
+      const orderRes = await fetch(`${apiBase}/api/payments/create-order`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const orderData = await orderRes.json();
+      if (!orderRes.ok) throw new Error(orderData.message || "Order creation failed");
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.order.amount,
+        currency: orderData.order.currency,
+        name: "PuneClassifieds",
+        description: "Monthly Premium Plan",
+        order_id: orderData.order.id,
+        handler: async (response) => {
+          const verifyRes = await fetch(`${apiBase}/api/payments/verify`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify(response)
+          });
+          const verifyData = await verifyRes.json();
+          if (!verifyRes.ok) throw new Error(verifyData.message || "Payment verification failed");
+          const nextUser = { ...(user || {}), paid: true, paidUntil: verifyData.paidUntil };
+          localStorage.setItem("user", JSON.stringify(nextUser));
+          window.dispatchEvent(new Event("user-updated"));
+          setUser(nextUser);
+          setPaymentInfo({
+            amount: "₹350",
+            paidUntil: verifyData.paidUntil,
+            plan: "Monthly Premium"
+          });
+          setShowCongrats(true);
+        },
+        theme: { color: "#0B163B" }
+      };
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      alert(err.message || "Payment failed");
+    }
+  };
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const controller = new AbortController();
+    const term = query.trim();
+    const run = async () => {
+      try {
+        const params = new URLSearchParams();
+        params.set("status", "approved");
+        params.set("search", term);
+        params.set("limit", "24");
+        const res = await fetch(`${apiBase}/api/posts?${params.toString()}`, { signal: controller.signal });
+        const data = await res.json();
+        setSearchResults(data.items || []);
+      } catch (err) {
+        if (err.name !== "AbortError") console.error(err);
+      }
+    };
+    const timer = setTimeout(run, 300);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [apiBase, query]);
 
   const goToCategory = (name) => {
     navigate(`/posts?category=${encodeURIComponent(name)}`);
@@ -176,6 +345,16 @@ const Home = ({ apiBase }) => {
         </div>
       </section>
 
+      {banners.banner1 && (
+        <section className="section banner-section">
+          <div className="container">
+            <div className="mid-banner">
+              <img className="banner-image" src={banners.banner1} alt="Community banner" loading="lazy" />
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="section">
         <div className="container">
           <div className="section-head">
@@ -199,8 +378,12 @@ const Home = ({ apiBase }) => {
               <div className="search-results">
                 {searchResults.map((item) => (
                   <div key={item._id || item.title} className="card media-card">
-                    {(item.imageUrl || item.imageData) && (
-                      <img src={item.imageUrl || item.imageData} alt={item.title} loading="lazy" />
+                    {((item.imageUrls && item.imageUrls[0]) || item.imageUrl || item.imageData) && (
+                      <img
+                        src={(item.imageUrls && item.imageUrls[0]) || item.imageUrl || item.imageData}
+                        alt={item.title}
+                        loading="lazy"
+                      />
                     )}
                     <div>
                       <h4>{item.title || item.name}</h4>
@@ -228,7 +411,7 @@ const Home = ({ apiBase }) => {
           <div className="grid featured-grid">
             {posts.slice(0, 15).map((item) => (
               <article key={item._id} className="card media-card featured-card">
-                <img src={item.imageUrl || item.imageData || fallbackHero} alt={item.title} loading="lazy" />
+                <img src={(item.imageUrls && item.imageUrls[0]) || item.imageUrl || item.imageData || fallbackHero} alt={item.title} loading="lazy" />
                 <div>
                   <span className="badge">{item.category}</span>
                   <h4>{item.title}</h4>
@@ -243,6 +426,47 @@ const Home = ({ apiBase }) => {
               <p>Browse the complete marketplace feed.</p>
               <span className="ghost-btn">View All</span>
             </NavLink>
+          </div>
+        </div>
+      </section>
+
+      
+
+      <section className="section" id="pricing">
+        <div className="container">
+          <div className="section-head">
+            <div>
+              <div className="section-label">PRICING</div>
+              <h2>Monthly Premium Plan</h2>
+            </div>
+            <p>Unlock higher limits and featured visibility.</p>
+          </div>
+          <div className="pricing-grid">
+            <div className="card pricing-card">
+              <h3>₹350 / month</h3>
+              <p>Best for citizens posting services regularly.</p>
+              <ul className="pricing-list">
+                <li>Upload up to 5 photos per listing</li>
+                <li>350 words max description</li>
+                <li>Up to 50 posts per day</li>
+                <li>Admin sets listing expiry on approval</li>
+              </ul>
+              <button className="primary-btn" onClick={handlePurchase} disabled={user?.paid}>
+                {user?.paid ? "Plan Active" : "Purchase Now"}
+              </button>
+            </div>
+            <div className="card pricing-card subtle">
+              <h3>Free Plan</h3>
+              <p>Perfect for occasional community listings.</p>
+              <ul className="pricing-list">
+                <li>Upload up to 3 photos per listing</li>
+                <li>150 words max description</li>
+                <li>Posts auto-expire after 30 days</li>
+              </ul>
+              <span className="plan-note">
+                Current plan: {user?.paid ? "Paid" : "Free"}
+              </span>
+            </div>
           </div>
         </div>
       </section>
@@ -270,6 +494,8 @@ const Home = ({ apiBase }) => {
           </div>
         </div>
       </section>
+
+      
 
       <section className="section">
         <div className="container">
@@ -358,6 +584,37 @@ const Home = ({ apiBase }) => {
               <div className="service-number">04</div>
               <h4>Premium Support</h4>
               <p>Community-first support with fast resolution times.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="section parallax-section" ref={parallaxRef}>
+        <div className="container">
+          <div className="parallax-grid">
+            <div className="parallax-tile media" data-speed="1.1">
+              <img src="https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&w=1200&q=80" alt="Pet collars" />
+            </div>
+            <div className="parallax-tile media" data-speed="0.8">
+              <img src="https://images.unsplash.com/photo-1507146426996-ef05306b995a?auto=format&fit=crop&w=1200&q=80" alt="Adoption" />
+            </div>
+            <div className="parallax-tile text">
+              <span className="section-label">COMMUNITY PICK</span>
+              <h2>Trusted Pet Care & Adoption</h2>
+              <p>Verified pet listings, shelters, and care services curated for Pune residents.</p>
+              <NavLink to="/posts?category=Pets" className="ghost-btn">Explore Pets</NavLink>
+            </div>
+            <div className="parallax-tile media" data-speed="1.2">
+              <img src="https://images.pexels.com/photos/208984/pexels-photo-208984.jpeg?_gl=1*1dind9k*_ga*MTM2NDg4Njc4Ny4xNzcyODY2ODE5*_ga_8JE65Q40S6*czE3NzMzMDYwNDEkbzEyJGcxJHQxNzczMzA2MTUwJGo0MSRsMCRoMA.." alt="Pet care" />
+            </div>
+            <div className="parallax-tile text">
+              <span className="section-label">LOCAL SERVICES</span>
+              <h2>Care, Grooming, & Essentials</h2>
+              <p>Discover community-rated trainers, groomers, and pet-friendly services.</p>
+              <NavLink to="/services" className="ghost-btn">Explore Categories</NavLink>
+            </div>
+            <div className="parallax-tile media" data-speed="0.9">
+              <img src="https://images.unsplash.com/photo-1530281700549-e82e7bf110d6?auto=format&fit=crop&w=1200&q=80" alt="Pet lifestyle" />
             </div>
           </div>
         </div>
@@ -485,15 +742,40 @@ const Home = ({ apiBase }) => {
           </div>
         </div>
       </section>
+
+      
+
+      {showCongrats && (
+        <div className="modal-overlay" onClick={() => setShowCongrats(false)}>
+          <div className="modal-card congrats-card" onClick={(e) => e.stopPropagation()}>
+            <div className="success-tick">
+              <span>✓</span>
+            </div>
+            <h2>Congratulations!</h2>
+            <p>You are now on the Premium plan.</p>
+            <div className="payment-summary">
+              <div>
+                <span>Plan</span>
+                <strong>{paymentInfo?.plan || "Premium"}</strong>
+              </div>
+              <div>
+                <span>Amount</span>
+                <strong>{paymentInfo?.amount || "₹350"}</strong>
+              </div>
+              <div>
+                <span>Valid Until</span>
+                <strong>{paymentInfo?.paidUntil ? new Date(paymentInfo.paidUntil).toLocaleDateString() : "—"}</strong>
+              </div>
+            </div>
+            <button className="primary-btn" onClick={() => setShowCongrats(false)}>Continue</button>
+          </div>
+        </div>
+      )}
     </main>
   );
 };
 
 export default Home;
-
-
-
-
 
 
 

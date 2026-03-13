@@ -19,6 +19,7 @@ const Login = ({ apiBase }) => {
       if (!res.ok) throw new Error(data.message || "Login failed");
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
+      window.dispatchEvent(new Event("user-updated"));
       navigate("/");
     } catch (err) {
       setError(err.message);

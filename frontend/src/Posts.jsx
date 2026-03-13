@@ -8,9 +8,11 @@ const useQuery = () => new URLSearchParams(useLocation().search);
 const Posts = ({ apiBase }) => {
   const query = useQuery();
   const initialCategory = query.get("category") || "";
+  const initialType = query.get("type") || "";
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState(initialCategory);
+  const [type, setType] = useState(initialType);
   const [location, setLocation] = useState("");
   const [categories, setCategories] = useState([]);
   const [locations] = useState([
@@ -54,12 +56,20 @@ const Posts = ({ apiBase }) => {
   const [posts, setPosts] = useState([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
+  const [banner, setBanner] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
     fetch(`${apiBase}/api/categories`)
       .then((r) => r.json())
       .then(setCategories)
+      .catch(console.error);
+  }, [apiBase]);
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/settings/web`)
+      .then((r) => r.json())
+      .then((settings) => setBanner(settings?.banner3 || ""))
       .catch(console.error);
   }, [apiBase]);
 
@@ -70,6 +80,7 @@ const Posts = ({ apiBase }) => {
     params.set("limit", "6");
     if (search) params.set("search", search);
     if (category) params.set("category", category);
+    if (type) params.set("type", type);
     if (location) params.set("location", location);
     const res = await fetch(`${apiBase}/api/posts?${params.toString()}`);
     const data = await res.json();
@@ -91,13 +102,27 @@ const Posts = ({ apiBase }) => {
 
   useEffect(() => {
     loadPosts(page);
-  }, [page, search, category, location]);
+  }, [page, search, category, type, location]);
 
   useEffect(() => {
     const newCategory = query.get("category") || "";
+    const newType = query.get("type") || "";
     setCategory(newCategory);
+    setType(newType);
     setPage(1);
   }, [query.toString()]);
+
+  const typeOptions = useMemo(() => {
+    if (!Array.isArray(categories) || categories.length === 0) return [];
+    if (category) {
+      const match = categories.find(
+        (cat) => cat.name && cat.name.toLowerCase() === category.toLowerCase()
+      );
+      return match && Array.isArray(match.types) ? match.types : [];
+    }
+    const allTypes = categories.flatMap((cat) => (Array.isArray(cat.types) ? cat.types : []));
+    return Array.from(new Set(allTypes));
+  }, [categories, category]);
 
   const pageNumbers = useMemo(() => {
     return Array.from({ length: Math.min(pages, 4) }, (_, i) => i + 1);
@@ -110,6 +135,16 @@ const Posts = ({ apiBase }) => {
         <p>Explore verified listings across all service categories.</p>
       </section>
 
+      {banner && (
+        <section className="section banner-section">
+          <div className="container">
+            <div className="mid-banner">
+              <img className="banner-image" src={banner} alt="Community posts banner" loading="lazy" />
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="search-section">
         <div className="search-bar">
           <input
@@ -120,11 +155,21 @@ const Posts = ({ apiBase }) => {
           />
           <select
             value={category}
-            onChange={(e) => { setCategory(e.target.value); setPage(1); }}
+            onChange={(e) => { setCategory(e.target.value); setType(""); setPage(1); }}
           >
             <option value="">All Categories</option>
             {categories.map((cat) => (
               <option key={cat._id} value={cat.name}>{cat.name}</option>
+            ))}
+          </select>
+          <select
+            value={type}
+            onChange={(e) => { setType(e.target.value); setPage(1); }}
+            disabled={typeOptions.length === 0}
+          >
+            <option value="">All Types</option>
+            {typeOptions.map((t) => (
+              <option key={t} value={t}>{t}</option>
             ))}
           </select>
           <select
@@ -152,7 +197,7 @@ const Posts = ({ apiBase }) => {
       <section className="grid">
         {posts.map((post) => (
           <article key={post._id} className="card media-card">
-            <img src={post.imageUrl || post.imageData || fallbackImage} alt={post.title} loading="lazy" />
+            <img src={(post.imageUrls && post.imageUrls[0]) || post.imageUrl || post.imageData || fallbackImage} alt={post.title} loading="lazy" />
             <div>
               <span className="badge">{post.category}</span>
               <h4>{post.title}</h4>

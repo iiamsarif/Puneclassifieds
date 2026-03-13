@@ -31,17 +31,66 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [newsList, setNewsList] = useState([]);
   const [noteList, setNoteList] = useState([]);
   const [trending, setTrending] = useState([]);
-  const [categoryForm, setCategoryForm] = useState({ name: "", description: "", iconUrl: "", iconData: "" });
+  const [categoryForm, setCategoryForm] = useState({
+    name: "",
+    description: "",
+    iconUrl: "",
+    iconData: "",
+    types: []
+  });
+  const [typeInput, setTypeInput] = useState("");
   const [newsForm, setNewsForm] = useState({ title: "", category: "", description: "", image: "", imageData: "", date: "" });
   const [noteForm, setNoteForm] = useState({ title: "", description: "", category: "", pdfFile: "", pdfData: "", notificationDate: "" });
-  const [settings, setSettings] = useState({ heroImage: "", contactEmail: "" });
+  const [editNewsOpen, setEditNewsOpen] = useState(false);
+  const [editingNews, setEditingNews] = useState(null);
+  const [editNewsForm, setEditNewsForm] = useState({ title: "", category: "", description: "", image: "", imageData: "", date: "" });
+  const [editNewsFile, setEditNewsFile] = useState(null);
+  const [editNoteOpen, setEditNoteOpen] = useState(false);
+  const [editingNote, setEditingNote] = useState(null);
+  const [editNoteForm, setEditNoteForm] = useState({ title: "", description: "", category: "", pdfFile: "", pdfData: "", notificationDate: "" });
+  const [editNoteFile, setEditNoteFile] = useState(null);
+  const [settings, setSettings] = useState({
+    heroImage: "",
+    contactEmail: "",
+    banner1: "",
+    banner2: "",
+    banner3: "",
+    banner4: ""
+  });
   const [status, setStatus] = useState("");
   const [active, setActive] = useState("dashboard");
   const [editPost, setEditPost] = useState(null);
-  const [editForm, setEditForm] = useState({ title: "", category: "", location: "", description: "", contactName: "", phone: "", imageData: "", imageUrl: "", userEmail: "" });
+  const [editForm, setEditForm] = useState({
+    title: "",
+    category: "",
+    type: "",
+    breed: "",
+    age: "",
+    gender: "",
+    size: "",
+    vaccinationStatus: "",
+    medicalHistory: "",
+    temperament: "",
+    adoptionConditions: "",
+    contactDetails: "",
+    location: "",
+    description: "",
+    contactName: "",
+    phone: "",
+    expiresAt: "",
+    imageData: "",
+    imageUrl: "",
+    imageUrls: [],
+    userEmail: ""
+  });
   const [editUploader, setEditUploader] = useState({ name: "", email: "" });
+  const [editUserDetails, setEditUserDetails] = useState(null);
+  const [editUserOpen, setEditUserOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [approveTarget, setApproveTarget] = useState(null);
+  const [approveExpiry, setApproveExpiry] = useState("");
   const [notifOpen, setNotifOpen] = useState(false);
   const [newsOpen, setNewsOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
@@ -53,7 +102,9 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [categoryFile, setCategoryFile] = useState(null);
   const [newsImageFile, setNewsImageFile] = useState(null);
   const [notePdfFile, setNotePdfFile] = useState(null);
-  const [editImageFile, setEditImageFile] = useState(null);
+  const [editImageFiles, setEditImageFiles] = useState([]);
+  const [editImagePreviews, setEditImagePreviews] = useState([]);
+  const [editImageNotice, setEditImageNotice] = useState("");
 
   const [pendingPage, setPendingPage] = useState(1);
   const [approvedPage, setApprovedPage] = useState(1);
@@ -61,6 +112,9 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [categoriesPage, setCategoriesPage] = useState(1);
   const [newsPage, setNewsPage] = useState(1);
   const [notesPage, setNotesPage] = useState(1);
+  const [userEditOpen, setUserEditOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [userForm, setUserForm] = useState({ name: "", email: "", paid: false, paidUntil: "" });
 
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
@@ -188,7 +242,14 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       if (isAll || section === "settings" || section === "dashboard") {
         jobs.push(
           fetchJson(`${apiBase}/api/settings/web`).then((s) =>
-            setSettings({ heroImage: s?.heroImage || "", contactEmail: s?.contactEmail || "" })
+            setSettings({
+              heroImage: s?.heroImage || "",
+              contactEmail: s?.contactEmail || "",
+              banner1: s?.banner1 || "",
+              banner2: s?.banner2 || "",
+              banner3: s?.banner3 || "",
+              banner4: s?.banner4 || ""
+            })
           )
         );
       }
@@ -248,6 +309,47 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     }, "Approved successfully");
   };
 
+  const openApproveModal = (post) => {
+    setApproveTarget(post);
+    setApproveExpiry("");
+    setApproveOpen(true);
+  };
+
+  const approvePostWithExpiry = async () => {
+    if (!approveTarget) return;
+    if (approveTarget.isPaidUser && !approveExpiry) {
+      pushToast("Set an expiry date for paid users.");
+      return;
+    }
+    await withLoading(async () => {
+      let approvedItem = approveTarget;
+      setPending((prev) => ({
+        ...prev,
+        posts: prev.posts.filter((item) => item._id !== approveTarget._id)
+      }));
+      setApproved((prev) => ({
+        ...prev,
+        posts: [{ ...approvedItem, status: "approved", expiresAt: approveExpiry || approvedItem.expiresAt }, ...prev.posts]
+      }));
+      const res = await fetch(`${apiBase}/api/admin/posts/${approveTarget._id}/approve`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ expiresAt: approveExpiry || null })
+      });
+      const data = await safeJson(res);
+      if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
+      if (!res.ok) throw new Error(data.message || "Failed to approve post.");
+      clampPage(pending.posts.length - 1, pendingPage, setPendingPage);
+      clampPage(approved.posts.length + 1, approvedPage, setApprovedPage);
+      setApproveOpen(false);
+      setApproveTarget(null);
+      void loadData(active);
+    }, "Approved successfully");
+  };
+
   const remove = async (type, id) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
     await withLoading(async () => {
@@ -290,13 +392,15 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         name: categoryForm.name,
         description: categoryForm.description || "",
         iconUrl: categoryForm.iconUrl,
-        iconData: categoryForm.iconData
+        iconData: categoryForm.iconData,
+        types: categoryForm.types || []
       };
       setCategories((prev) => [tempItem, ...prev]);
       setCategoriesPage(1);
       const formData = new FormData();
       formData.append("name", categoryForm.name);
       formData.append("description", categoryForm.description || "");
+      formData.append("types", JSON.stringify(categoryForm.types || []));
       if (categoryForm.iconUrl.trim()) formData.append("iconUrl", categoryForm.iconUrl.trim());
       if (categoryFile) formData.append("icon", categoryFile);
       const res = await fetch(`${apiBase}/api/categories`, {
@@ -310,10 +414,51 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       if (data.item) {
         setCategories((prev) => prev.map((cat) => (cat._id === tempId ? data.item : cat)));
       }
-      setCategoryForm({ name: "", description: "", iconUrl: "", iconData: "" });
+      setCategoryForm({ name: "", description: "", iconUrl: "", iconData: "", types: [] });
+      setTypeInput("");
       setCategoryFile(null);
       void loadData(active);
     }, "Category added");
+  };
+
+  const startEditUser = (user) => {
+    setEditingUser(user._id);
+    setUserForm({
+      name: user.name || "",
+      email: user.email || "",
+      paid: !!user.paid,
+      paidUntil: user.paidUntil ? new Date(user.paidUntil).toISOString().slice(0, 10) : ""
+    });
+    setUserEditOpen(true);
+  };
+
+  const saveUser = async (e) => {
+    e.preventDefault();
+    await withLoading(async () => {
+      const payload = {
+        name: userForm.name,
+        email: userForm.email,
+        paid: userForm.paid,
+        paidUntil: userForm.paid ? (userForm.paidUntil ? `${userForm.paidUntil}T00:00` : null) : null
+      };
+      const res = await fetch(`${apiBase}/api/admin/users/${editingUser}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await safeJson(res);
+      if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
+      if (!res.ok) throw new Error(data.message || "Failed to update user.");
+      setUsers((prev) =>
+        prev.map((u) => (u._id === editingUser ? { ...u, ...payload } : u))
+      );
+      setUserEditOpen(false);
+      setEditingUser(null);
+      void loadData(active);
+    }, "User updated");
   };
 
   const startEditCategory = (cat) => {
@@ -322,8 +467,10 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       name: cat.name,
       description: cat.description || "",
       iconUrl: cat.iconUrl || "",
-      iconData: cat.iconData || ""
+      iconData: cat.iconData || "",
+      types: Array.isArray(cat.types) ? cat.types : []
     });
+    setTypeInput("");
     setCategoryFile(null);
     setCategoryEditOpen(true);
   };
@@ -337,6 +484,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       const formData = new FormData();
       formData.append("name", categoryForm.name);
       formData.append("description", categoryForm.description || "");
+      formData.append("types", JSON.stringify(categoryForm.types || []));
       if (categoryForm.iconUrl.trim()) formData.append("iconUrl", categoryForm.iconUrl.trim());
       if (categoryFile) formData.append("icon", categoryFile);
       const res = await fetch(`${apiBase}/api/categories/${editingCategory}`, {
@@ -349,11 +497,30 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       if (!res.ok) throw new Error(data.message || "Failed to update category.");
       setCategoryEditOpen(false);
       setEditingCategory(null);
-      setCategoryForm({ name: "", description: "", iconUrl: "", iconData: "" });
+      setCategoryForm({ name: "", description: "", iconUrl: "", iconData: "", types: [] });
+      setTypeInput("");
       setCategoryFile(null);
       clampPage(categories.length, categoriesPage, setCategoriesPage);
       void loadData(active);
     }, "Category updated");
+  };
+
+  const addType = () => {
+    const value = typeInput.trim();
+    if (!value) return;
+    setCategoryForm((prev) => {
+      const next = Array.isArray(prev.types) ? prev.types.slice() : [];
+      if (!next.includes(value)) next.push(value);
+      return { ...prev, types: next };
+    });
+    setTypeInput("");
+  };
+
+  const removeType = (value) => {
+    setCategoryForm((prev) => ({
+      ...prev,
+      types: (prev.types || []).filter((t) => t !== value)
+    }));
   };
 
   const deleteCategory = async (id) => {
@@ -407,6 +574,58 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       setNewsImageFile(null);
       void loadData(active);
     }, "News added");
+  };
+
+  const handleEditNewsImage = (file) => {
+    if (!file) {
+      setEditNewsFile(null);
+      setEditNewsForm((prev) => ({ ...prev, imageData: "" }));
+      return;
+    }
+    setEditNewsFile(file);
+    setEditNewsForm((prev) => ({ ...prev, imageData: URL.createObjectURL(file) }));
+  };
+
+  const startEditNews = (item) => {
+    setEditingNews(item._id);
+    setEditNewsForm({
+      title: item.title || "",
+      category: item.category || "",
+      description: item.description || "",
+      image: item.image || "",
+      imageData: item.imageData || "",
+      date: item.date || ""
+    });
+    setEditNewsFile(null);
+    setEditNewsOpen(true);
+  };
+
+  const saveEditNews = async (e) => {
+    e.preventDefault();
+    await withLoading(async () => {
+      const formData = new FormData();
+      formData.append("title", editNewsForm.title);
+      formData.append("category", editNewsForm.category);
+      formData.append("description", editNewsForm.description);
+      formData.append("date", editNewsForm.date);
+      if (editNewsForm.image.trim()) formData.append("image", editNewsForm.image.trim());
+      if (editNewsFile) formData.append("image", editNewsFile);
+      const res = await fetch(`${apiBase}/api/news/${editingNews}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await safeJson(res);
+      if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
+      if (!res.ok) throw new Error(data.message || "Failed to update news.");
+      setNewsList((prev) =>
+        prev.map((n) => (n._id === editingNews ? { ...n, ...editNewsForm } : n))
+      );
+      setEditNewsOpen(false);
+      setEditingNews(null);
+      setEditNewsFile(null);
+      void loadData(active);
+    }, "News updated");
   };
 
   const deleteNews = async (id) => {
@@ -472,6 +691,58 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     }, "Notification added");
   };
 
+  const handleEditNoteFile = (file) => {
+    if (!file) {
+      setEditNoteFile(null);
+      setEditNoteForm((prev) => ({ ...prev, pdfData: "" }));
+      return;
+    }
+    setEditNoteFile(file);
+    setEditNoteForm((prev) => ({ ...prev, pdfData: file.name }));
+  };
+
+  const startEditNotification = (item) => {
+    setEditingNote(item._id);
+    setEditNoteForm({
+      title: item.title || "",
+      description: item.description || "",
+      category: item.category || "",
+      pdfFile: item.pdfFile || "",
+      pdfData: item.pdfData || "",
+      notificationDate: item.notificationDate || ""
+    });
+    setEditNoteFile(null);
+    setEditNoteOpen(true);
+  };
+
+  const saveEditNotification = async (e) => {
+    e.preventDefault();
+    await withLoading(async () => {
+      const formData = new FormData();
+      formData.append("title", editNoteForm.title);
+      formData.append("description", editNoteForm.description);
+      formData.append("category", editNoteForm.category);
+      formData.append("notificationDate", editNoteForm.notificationDate);
+      if (editNoteForm.pdfFile.trim()) formData.append("pdfFile", editNoteForm.pdfFile.trim());
+      if (editNoteFile) formData.append("pdf", editNoteFile);
+      const res = await fetch(`${apiBase}/api/notifications/${editingNote}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await safeJson(res);
+      if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
+      if (!res.ok) throw new Error(data.message || "Failed to update notification.");
+      setNoteList((prev) =>
+        prev.map((n) => (n._id === editingNote ? { ...n, ...editNoteForm } : n))
+      );
+      setEditNoteOpen(false);
+      setEditingNote(null);
+      setEditNoteFile(null);
+      void loadData(active);
+    }, "Notification updated");
+  };
+
   const deleteNotification = async (id) => {
     if (!window.confirm("Are you sure you want to delete this notification?")) return;
     await withLoading(async () => {
@@ -534,13 +805,38 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     setPdfReady(true);
   };
 
-  const handleEditImage = (file) => {
-    if (!file) {
-      setEditImageFile(null);
-      return;
+  const handleEditImages = (e) => {
+    const incoming = Array.from(e?.target?.files || []);
+    if (!incoming.length) return;
+    const existingCount = (editForm.imageUrls || []).length;
+    const allowed = Math.max(0, 5 - existingCount);
+    setEditImageFiles((prev) => {
+      const combined = [...prev, ...incoming];
+      if (combined.length > allowed) {
+        setEditImageNotice("You can upload up to 5 images.");
+      } else {
+        setEditImageNotice("");
+      }
+      const trimmed = combined.slice(0, allowed);
+      setEditImagePreviews(trimmed.map((file) => URL.createObjectURL(file)));
+      return trimmed;
+    });
+    if (e?.target) {
+      e.target.value = "";
     }
-    setEditImageFile(file);
-    setEditForm((prev) => ({ ...prev, imageData: URL.createObjectURL(file), imageUrl: "" }));
+  };
+
+  const removeEditExistingImage = (idx) => {
+    setEditForm((prev) => ({
+      ...prev,
+      imageUrls: (prev.imageUrls || []).filter((_, i) => i !== idx)
+    }));
+  };
+
+  const removeEditNewImage = (idx) => {
+    const nextFiles = editImageFiles.filter((_, i) => i !== idx);
+    setEditImageFiles(nextFiles);
+    setEditImagePreviews(nextFiles.map((file) => URL.createObjectURL(file)));
   };
 
   const startEdit = async (post) => {
@@ -548,16 +844,34 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     setEditForm({
       title: post.title || "",
       category: post.category || "",
+      type: post.type || "",
+      breed: post.breed || "",
+      age: post.age || "",
+      gender: post.gender || "",
+      size: post.size || "",
+      vaccinationStatus: post.vaccinationStatus || "",
+      medicalHistory: post.medicalHistory || "",
+      temperament: post.temperament || "",
+      adoptionConditions: post.adoptionConditions || "",
+      contactDetails: post.contactDetails || "",
       location: post.location || "",
       description: post.description || "",
       contactName: post.contactName || "",
       phone: post.phone || "",
+      expiresAt: post.expiresAt ? new Date(post.expiresAt).toISOString().slice(0, 16) : "",
       imageData: post.imageData || "",
       imageUrl: post.imageUrl || "",
+      imageUrls: Array.isArray(post.imageUrls) && post.imageUrls.length
+        ? post.imageUrls
+        : (post.imageUrl ? [post.imageUrl] : []),
       userEmail: post.userEmail || ""
     });
     setEditUploader({ name: post.contactName || "", email: post.userEmail || "" });
-    setEditImageFile(null);
+    setEditImageFiles([]);
+    setEditImagePreviews([]);
+    setEditImageNotice("");
+    setEditUserDetails(null);
+    setEditUserOpen(false);
     setEditOpen(true);
     setEditLoading(true);
     try {
@@ -568,15 +882,30 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       setEditForm({
         title: data.post.title,
         category: data.post.category,
+        type: data.post.type || "",
+        breed: data.post.breed || "",
+        age: data.post.age || "",
+        gender: data.post.gender || "",
+        size: data.post.size || "",
+        vaccinationStatus: data.post.vaccinationStatus || "",
+        medicalHistory: data.post.medicalHistory || "",
+        temperament: data.post.temperament || "",
+        adoptionConditions: data.post.adoptionConditions || "",
+        contactDetails: data.post.contactDetails || "",
         location: data.post.location || "",
         description: data.post.description,
         contactName: data.post.contactName || "",
         phone: data.post.phone || "",
+        expiresAt: data.post.expiresAt ? new Date(data.post.expiresAt).toISOString().slice(0, 16) : "",
         imageData: data.post.imageData || "",
         imageUrl: data.post.imageUrl || "",
+        imageUrls: Array.isArray(data.post.imageUrls) && data.post.imageUrls.length
+          ? data.post.imageUrls
+          : (data.post.imageUrl ? [data.post.imageUrl] : []),
         userEmail: data.post.userEmail || ""
       });
       setEditUploader({ name: data.user?.name || "", email: data.user?.email || "" });
+      setEditUserDetails(data.user || null);
       setEditLoading(false);
     } catch (err) {
       console.error(err);
@@ -594,13 +923,24 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       const formData = new FormData();
       formData.append("title", editForm.title);
       formData.append("category", editForm.category);
+      formData.append("type", editForm.type || "");
+      formData.append("breed", editForm.breed || "");
+      formData.append("age", editForm.age || "");
+      formData.append("gender", editForm.gender || "");
+      formData.append("size", editForm.size || "");
+      formData.append("vaccinationStatus", editForm.vaccinationStatus || "");
+      formData.append("medicalHistory", editForm.medicalHistory || "");
+      formData.append("temperament", editForm.temperament || "");
+      formData.append("adoptionConditions", editForm.adoptionConditions || "");
+      formData.append("contactDetails", editForm.contactDetails || "");
       formData.append("location", editForm.location || "");
       formData.append("description", editForm.description);
       formData.append("contactName", editForm.contactName);
       formData.append("phone", editForm.phone);
       formData.append("userEmail", editForm.userEmail || "");
-      if (editForm.imageUrl) formData.append("imageUrl", editForm.imageUrl);
-      if (editImageFile) formData.append("image", editImageFile);
+      if (editForm.expiresAt) formData.append("expiresAt", new Date(editForm.expiresAt).toISOString());
+      formData.append("existingImages", JSON.stringify(editForm.imageUrls || []));
+      editImageFiles.forEach((file) => formData.append("images", file));
       const res = await fetch(`${apiBase}/api/admin/posts/${editPost}`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}` },
@@ -619,10 +959,18 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       {items.map((item) => (
         <div key={item._id} className="card">
           <h4>{item.jobTitle || item.propertyTitle || item.petName || item.title}</h4>
-          <p>{item.description || item.location || item.breed || item.category}</p>
+          <p className="clamp-2">{item.description || item.location || item.breed || item.category}</p>
+          {type === "posts" && item.isPaidUser && (
+            <span className="plan-badge paid">Paid User</span>
+          )}
           {item.location && <p className="muted">Location: {item.location}</p>}
           <div className="action-row">
-            {pendingView && (
+            {pendingView && type === "posts" && (
+              <button className="primary-btn" onClick={() => openApproveModal(item)}>
+                Approve
+              </button>
+            )}
+            {pendingView && type !== "posts" && (
               <button className="primary-btn" onClick={() => approve(type, item._id)}>
                 Approve
               </button>
@@ -667,6 +1015,16 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       </div>
     );
   };
+
+  const editCategoryTypes = useMemo(() => {
+    if (!editForm.category) return [];
+    const match = categories.find(
+      (cat) => cat.name && cat.name.toLowerCase() === editForm.category.toLowerCase()
+    );
+    return match && Array.isArray(match.types) ? match.types : [];
+  }, [categories, editForm.category]);
+
+  const showEditPetFields = editForm.category.toLowerCase() === "pets";
 
   const allPostsCount = approved.posts.length + pending.posts.length;
   const allUsersCount = users.length;
@@ -728,27 +1086,35 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       <aside className={`admin-sidebar ${sidebarOpen ? "open" : ""}`}>
         <h2>Admin Console</h2>
         <button className={active === "dashboard" ? "active" : ""} onClick={() => { setActive("dashboard"); setSidebarOpen(false); }}>
+          <span className="admin-nav-icon">🏠</span>
           Dashboard
         </button>
         <button className={active === "pending" ? "active" : ""} onClick={() => { setActive("pending"); setSidebarOpen(false); }}>
+          <span className="admin-nav-icon">⏳</span>
           Pending Posts
         </button>
         <button className={active === "approved" ? "active" : ""} onClick={() => { setActive("approved"); setSidebarOpen(false); }}>
+          <span className="admin-nav-icon">✅</span>
           Approved Posts
         </button>
         <button className={active === "users" ? "active" : ""} onClick={() => { setActive("users"); setSidebarOpen(false); }}>
+          <span className="admin-nav-icon">👥</span>
           Control Users
         </button>
         <button className={active === "categories" ? "active" : ""} onClick={() => { setActive("categories"); setSidebarOpen(false); }}>
+          <span className="admin-nav-icon">🗂️</span>
           Categories
         </button>
         <button className={active === "news" ? "active" : ""} onClick={() => { setActive("news"); setSidebarOpen(false); }}>
+          <span className="admin-nav-icon">📰</span>
           Upload News
         </button>
         <button className={active === "notifications" ? "active" : ""} onClick={() => { setActive("notifications"); setSidebarOpen(false); }}>
+          <span className="admin-nav-icon">🔔</span>
           Notifications
         </button>
         <button className={active === "settings" ? "active" : ""} onClick={() => { setActive("settings"); setSidebarOpen(false); }}>
+          <span className="admin-nav-icon">⚙️</span>
           Web Settings
         </button>
       </aside>
@@ -830,10 +1196,38 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
             <div className="modal-card" onClick={(e) => e.stopPropagation()}>
               <div className="modal-head">
                 <h3>Edit Approved Post</h3>
-                <button className="ghost-btn" onClick={() => setEditOpen(false)}>Close</button>
+                <div className="modal-actions">
+                  <button className="ghost-btn" onClick={() => setEditUserOpen((v) => !v)}>
+                    Settings
+                  </button>
+                  <button className="ghost-btn" onClick={() => setEditOpen(false)}>Close</button>
+                </div>
               </div>
               {editLoading && <p className="muted">Loading details...</p>}
               <p className="muted">Uploaded by: {editUploader.name} ({editUploader.email})</p>
+              {editUserOpen && (
+                <div className="user-settings-card">
+                  <div>
+                    <h4>User Details</h4>
+                    <p className="muted">Name: {editUserDetails?.name || "N/A"}</p>
+                    <p className="muted">Email: {editUserDetails?.email || editForm.userEmail || "N/A"}</p>
+                    <p className="muted">Contact Name: {editForm.contactName || "N/A"}</p>
+                    <p className="muted">Phone: {editForm.phone || "N/A"}</p>
+                  </div>
+                  <div className="plan-summary">
+                    <h4>Plan</h4>
+                    <span className={`plan-badge ${editUserDetails?.paid ? "paid" : "free"}`}>
+                      {editUserDetails?.paid ? "Paid Plan" : "Free Plan"}
+                    </span>
+                    <p className="muted">
+                      Paid Until: {editUserDetails?.paidUntil ? new Date(editUserDetails.paidUntil).toLocaleDateString() : "N/A"}
+                    </p>
+                    <p className="muted">
+                      Post Expiry: {editForm.expiresAt ? new Date(editForm.expiresAt).toLocaleDateString() : "Not set"}
+                    </p>
+                  </div>
+                </div>
+              )}
               <form className="form-card" onSubmit={saveEdit}>
                 <input
                   type="text"
@@ -842,13 +1236,73 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
                   required
                 />
-                <input
-                  type="text"
-                  placeholder="Category"
+                <select
                   value={editForm.category}
-                  onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                  onChange={(e) => setEditForm({ ...editForm, category: e.target.value, type: "" })}
                   required
-                />
+                >
+                  <option value="">Select Category</option>
+                  {categories.map((cat) => (
+                    <option key={cat._id} value={cat.name}>{cat.name}</option>
+                  ))}
+                </select>
+                {editCategoryTypes.length > 0 && (
+                  <select
+                    value={editForm.type}
+                    onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
+                  >
+                    <option value="">Select Type</option>
+                    {editCategoryTypes.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                )}
+                {showEditPetFields && (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Breed"
+                      value={editForm.breed}
+                      onChange={(e) => setEditForm({ ...editForm, breed: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Age"
+                      value={editForm.age}
+                      onChange={(e) => setEditForm({ ...editForm, age: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Gender"
+                      value={editForm.gender}
+                      onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Size"
+                      value={editForm.size}
+                      onChange={(e) => setEditForm({ ...editForm, size: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Vaccination Status"
+                      value={editForm.vaccinationStatus}
+                      onChange={(e) => setEditForm({ ...editForm, vaccinationStatus: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Medical History"
+                      value={editForm.medicalHistory}
+                      onChange={(e) => setEditForm({ ...editForm, medicalHistory: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Temperament"
+                      value={editForm.temperament}
+                      onChange={(e) => setEditForm({ ...editForm, temperament: e.target.value })}
+                    />
+                  </>
+                )}
                 <textarea
                   rows="3"
                   placeholder="Description"
@@ -863,6 +1317,22 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
                   required
                 />
+                {showEditPetFields && (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Adoption Conditions"
+                      value={editForm.adoptionConditions}
+                      onChange={(e) => setEditForm({ ...editForm, adoptionConditions: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Contact Details"
+                      value={editForm.contactDetails}
+                      onChange={(e) => setEditForm({ ...editForm, contactDetails: e.target.value })}
+                    />
+                  </>
+                )}
                 <input
                   type="email"
                   placeholder="Posted By (Email)"
@@ -881,13 +1351,49 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   value={editForm.phone}
                   onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                 />
+                <label className="field-label">Expire Date</label>
+                <input
+                  type="date"
+                  value={editForm.expiresAt ? editForm.expiresAt.split("T")[0] : ""}
+                  onChange={(e) => {
+                    const next = e.target.value ? `${e.target.value}T00:00` : "";
+                    setEditForm({ ...editForm, expiresAt: next });
+                  }}
+                />
+                <label className="field-label">Upload Images (max 5)</label>
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => handleEditImage(e.target.files[0])}
+                  name="images"
+                  multiple
+                  onChange={handleEditImages}
                 />
-                {(editForm.imageData || editForm.imageUrl) && (
-                  <img className="preview-image" src={editForm.imageData || editForm.imageUrl} alt="Preview" />
+                <small className="muted">Selected: {(editForm.imageUrls || []).length + editImagePreviews.length}/5</small>
+                {editImageNotice && <small className="error">{editImageNotice}</small>}
+                <small className="muted">Tip: Use Ctrl/Shift to select multiple images.</small>
+                {Array.isArray(editForm.imageUrls) && editForm.imageUrls.length > 0 && (
+                  <div className="image-preview-grid">
+                    {editForm.imageUrls.map((src, idx) => (
+                      <div key={`${src}-${idx}`} className="image-preview-item">
+                        <img className="preview-image" src={src} alt={`Existing ${idx + 1}`} />
+                        <button type="button" className="ghost-btn" onClick={() => removeEditExistingImage(idx)}>
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {editImagePreviews.length > 0 && (
+                  <div className="image-preview-grid">
+                    {editImagePreviews.map((src, idx) => (
+                      <div key={`${src}-${idx}`} className="image-preview-item">
+                        <img className="preview-image" src={src} alt={`Preview ${idx + 1}`} />
+                        <button type="button" className="ghost-btn" onClick={() => removeEditNewImage(idx)}>
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 )}
                 <button className="primary-btn" type="submit">Save Changes</button>
               </form>
@@ -906,6 +1412,9 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   <h4>{user.name}</h4>
                   <p>{user.email}</p>
                   <div className="action-row">
+                    <button className="ghost-btn" onClick={() => startEditUser(user)}>
+                      Edit
+                    </button>
                     <button className="ghost-btn" onClick={() => removeUser(user._id)}>
                       Remove User
                     </button>
@@ -915,6 +1424,53 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
             </div>
             {renderPager(users, usersPage, setUsersPage)}
           </section>
+        )}
+
+        {userEditOpen && (
+          <div className="modal-overlay" onClick={() => setUserEditOpen(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-head">
+                <h3>Edit User</h3>
+                <button className="ghost-btn" onClick={() => setUserEditOpen(false)}>Close</button>
+              </div>
+              <form className="form-card" onSubmit={saveUser}>
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  value={userForm.name}
+                  onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                  required
+                />
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={userForm.email}
+                  onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                  required
+                />
+                <label className="field-label">Plan Type</label>
+                <select
+                  value={userForm.paid ? "paid" : "free"}
+                  onChange={(e) => setUserForm({ ...userForm, paid: e.target.value === "paid" })}
+                >
+                  <option value="free">Free</option>
+                  <option value="paid">Paid</option>
+                </select>
+                {userForm.paid && (
+                  <>
+                    <label className="field-label">Plan Expiry Date</label>
+                    <input
+                      type="date"
+                      value={userForm.paidUntil}
+                      onChange={(e) => setUserForm({ ...userForm, paidUntil: e.target.value })}
+                      required
+                    />
+                  </>
+                )}
+                <button className="primary-btn" type="submit">Save Changes</button>
+              </form>
+            </div>
+          </div>
         )}
 
         {active === "categories" && (
@@ -974,6 +1530,31 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   value={categoryForm.description}
                   onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
                 />
+                <div className="type-row">
+                  <input
+                    type="text"
+                    placeholder="Add Type (e.g., Dog)"
+                    value={typeInput}
+                    onChange={(e) => setTypeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addType();
+                      }
+                    }}
+                  />
+                  <button className="ghost-btn" type="button" onClick={addType}>+</button>
+                </div>
+                {categoryForm.types && categoryForm.types.length > 0 && (
+                  <div className="type-list">
+                    {categoryForm.types.map((type) => (
+                      <div key={type} className="type-chip">
+                        <span>{type}</span>
+                        <button type="button" onClick={() => removeType(type)}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <input
                   type="text"
                   placeholder="Icon URL"
@@ -1026,6 +1607,31 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   value={categoryForm.description}
                   onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
                 />
+                <div className="type-row">
+                  <input
+                    type="text"
+                    placeholder="Add Type (e.g., Dog)"
+                    value={typeInput}
+                    onChange={(e) => setTypeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addType();
+                      }
+                    }}
+                  />
+                  <button className="ghost-btn" type="button" onClick={addType}>+</button>
+                </div>
+                {categoryForm.types && categoryForm.types.length > 0 && (
+                  <div className="type-list">
+                    {categoryForm.types.map((type) => (
+                      <div key={type} className="type-chip">
+                        <span>{type}</span>
+                        <button type="button" onClick={() => removeType(type)}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <input
                   type="text"
                   placeholder="Icon URL"
@@ -1069,6 +1675,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   <h4>{item.title}</h4>
                   <p>{item.category}</p>
                   <div className="action-row">
+                    <button className="ghost-btn" onClick={() => startEditNews(item)}>Edit</button>
                     <button className="ghost-btn" onClick={() => deleteNews(item._id)}>Delete</button>
                   </div>
                 </div>
@@ -1133,6 +1740,85 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
           </div>
         )}
 
+        {approveOpen && (
+          <div className="modal-overlay" onClick={() => setApproveOpen(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-head">
+                <h3>Approve Post</h3>
+                <button className="ghost-btn" onClick={() => setApproveOpen(false)}>Close</button>
+              </div>
+              <p className="muted">
+                {approveTarget?.isPaidUser ? "Paid user: set expiry date before approval." : "Free user: expires in 30 days automatically."}
+              </p>
+              {approveTarget?.isPaidUser && (
+                <input
+                  type="date"
+                  className="date-input"
+                  value={approveExpiry}
+                  onChange={(e) => setApproveExpiry(e.target.value)}
+                  required
+                />
+              )}
+              <button className="primary-btn" onClick={approvePostWithExpiry}>Confirm Approval</button>
+            </div>
+          </div>
+        )}
+
+        {editNewsOpen && (
+          <div className="modal-overlay" onClick={() => setEditNewsOpen(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-head">
+                <h3>Edit News</h3>
+                <button className="ghost-btn" onClick={() => setEditNewsOpen(false)}>Close</button>
+              </div>
+              <form className="form-card" onSubmit={saveEditNews}>
+                <input
+                  type="text"
+                  placeholder="Title"
+                  value={editNewsForm.title}
+                  onChange={(e) => setEditNewsForm({ ...editNewsForm, title: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Category"
+                  value={editNewsForm.category}
+                  onChange={(e) => setEditNewsForm({ ...editNewsForm, category: e.target.value })}
+                  required
+                />
+                <textarea
+                  rows="3"
+                  placeholder="Description"
+                  value={editNewsForm.description}
+                  onChange={(e) => setEditNewsForm({ ...editNewsForm, description: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Image URL"
+                  value={editNewsForm.image}
+                  onChange={(e) => setEditNewsForm({ ...editNewsForm, image: e.target.value, imageData: "" })}
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleEditNewsImage(e.target.files[0])}
+                />
+                {(editNewsForm.imageData || editNewsForm.image) && (
+                  <img className="preview-image" src={editNewsForm.imageData || editNewsForm.image} alt="Preview" />
+                )}
+                <input
+                  type="date"
+                  value={editNewsForm.date}
+                  onChange={(e) => setEditNewsForm({ ...editNewsForm, date: e.target.value })}
+                  required
+                />
+                <button className="primary-btn" type="submit">Save Changes</button>
+              </form>
+            </div>
+          </div>
+        )}
+
         {active === "notifications" && (
           <section className="section">
             <div className="section-head">
@@ -1146,6 +1832,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   <p>{item.category}</p>
                   <p className="muted">{item.notificationDate}</p>
                   <div className="action-row">
+                    <button className="ghost-btn" onClick={() => startEditNotification(item)}>Edit</button>
                     <button className="ghost-btn" onClick={() => deleteNotification(item._id)}>Delete</button>
                   </div>
                 </div>
@@ -1216,6 +1903,58 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
           </div>
         )}
 
+        {editNoteOpen && (
+          <div className="modal-overlay" onClick={() => setEditNoteOpen(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-head">
+                <h3>Edit Notification</h3>
+                <button className="ghost-btn" onClick={() => setEditNoteOpen(false)}>Close</button>
+              </div>
+              <form className="form-card" onSubmit={saveEditNotification}>
+                <input
+                  type="text"
+                  placeholder="Title"
+                  value={editNoteForm.title}
+                  onChange={(e) => setEditNoteForm({ ...editNoteForm, title: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Category"
+                  value={editNoteForm.category}
+                  onChange={(e) => setEditNoteForm({ ...editNoteForm, category: e.target.value })}
+                  required
+                />
+                <textarea
+                  rows="3"
+                  placeholder="Description"
+                  value={editNoteForm.description}
+                  onChange={(e) => setEditNoteForm({ ...editNoteForm, description: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="PDF URL"
+                  value={editNoteForm.pdfFile}
+                  onChange={(e) => setEditNoteForm({ ...editNoteForm, pdfFile: e.target.value, pdfData: "" })}
+                />
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => handleEditNoteFile(e.target.files[0])}
+                />
+                <input
+                  type="date"
+                  value={editNoteForm.notificationDate}
+                  onChange={(e) => setEditNoteForm({ ...editNoteForm, notificationDate: e.target.value })}
+                  required
+                />
+                <button className="primary-btn" type="submit">Save Changes</button>
+              </form>
+            </div>
+          </div>
+        )}
+
         {active === "settings" && (
           <section className="section form-section">
             <div className="section-head">
@@ -1234,6 +1973,30 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 value={settings.contactEmail}
                 onChange={(e) => setSettings({ ...settings, contactEmail: e.target.value })}
               />
+              <input
+                type="text"
+                placeholder="Banner 1 Image URL"
+                value={settings.banner1}
+                onChange={(e) => setSettings({ ...settings, banner1: e.target.value })}
+              />
+              <input
+                type="text"
+                placeholder="Banner 2 Image URL"
+                value={settings.banner2}
+                onChange={(e) => setSettings({ ...settings, banner2: e.target.value })}
+              />
+              <input
+                type="text"
+                placeholder="Banner 3 Image URL"
+                value={settings.banner3}
+                onChange={(e) => setSettings({ ...settings, banner3: e.target.value })}
+              />
+              <input
+                type="text"
+                placeholder="Banner 4 Image URL"
+                value={settings.banner4}
+                onChange={(e) => setSettings({ ...settings, banner4: e.target.value })}
+              />
               <button className="primary-btn" type="submit">Save Settings</button>
             </form>
           </section>
@@ -1244,5 +2007,3 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
 };
 
 export default AdminPanel;
-
-

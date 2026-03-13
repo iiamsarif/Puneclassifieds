@@ -12,6 +12,7 @@ const Services = lazy(() => import("./Services.jsx"));
 const Posts = lazy(() => import("./Posts.jsx"));
 const PostDetails = lazy(() => import("./PostDetails.jsx"));
 const MyPosts = lazy(() => import("./MyPosts.jsx"));
+const Account = lazy(() => import("./Account.jsx"));
 const Notifications = lazy(() => import("./Notifications.jsx"));
 const NotificationsDetail = lazy(() => import("./NotificationsDetail.jsx"));
 const Contact = lazy(() => import("./Contact.jsx"));
@@ -21,7 +22,7 @@ const AdminAccess = lazy(() => import("./AdminAccess.jsx"));
 const AdminPanel = lazy(() => import("./AdminPanel.jsx"));
 const PostService = lazy(() => import("./PostService.jsx"));
 
-const API_BASE = import.meta.env.VITE_API_BASE || "https://puneclassifieds.onrender.com";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
 const RequireAuth = ({ children }) => {
   const token = localStorage.getItem("token");
@@ -70,6 +71,14 @@ const Layout = () => {
               </RequireAuth>
             }
           />
+          <Route
+            path="/account"
+            element={
+              <RequireAuth>
+                <Account apiBase={API_BASE} />
+              </RequireAuth>
+            }
+          />
           <Route path="/notifications" element={<Notifications apiBase={API_BASE} />} />
           <Route path="/notifications/:id" element={<NotificationsDetail apiBase={API_BASE} />} />
           <Route path="/contact" element={<Contact apiBase={API_BASE} />} />
@@ -107,6 +116,5 @@ const App = () => (
 );
 
 export default App;
-
 
 

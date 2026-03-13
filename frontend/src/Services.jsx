@@ -28,7 +28,7 @@ const Services = ({ apiBase }) => {
   return (
     <main className="page">
       <section className="section-head-block">
-        <h1>Services</h1>
+        <h1>Explore Categories</h1>
         <p>Browse service categories curated by the admin team.</p>
       </section>
       <section className="grid">

@@ -8,11 +8,17 @@ const News = ({ apiBase }) => {
   const [news, setNews] = useState([]);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
+  const [banner, setBanner] = useState("");
 
   useEffect(() => {
-    fetch(`${apiBase}/api/news`)
-      .then((r) => r.json())
-      .then(setNews)
+    Promise.all([
+      fetch(`${apiBase}/api/news`).then((r) => r.json()),
+      fetch(`${apiBase}/api/settings/web`).then((r) => r.json())
+    ])
+      .then(([newsData, settings]) => {
+        setNews(Array.isArray(newsData) ? newsData : []);
+        setBanner(settings?.banner2 || "");
+      })
       .catch(console.error);
   }, [apiBase]);
 
@@ -46,6 +52,16 @@ const News = ({ apiBase }) => {
         <h1>News & Updates</h1>
         <p>Curated local updates and important announcements.</p>
       </section>
+
+      {banner && (
+        <section className="section banner-section">
+          <div className="container">
+            <div className="mid-banner">
+              <img className="banner-image" src={banner} alt="News banner" loading="lazy" />
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="search-section">
         <div className="search-bar">

@@ -7,11 +7,17 @@ const Notifications = ({ apiBase }) => {
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
+  const [banner, setBanner] = useState("");
 
   useEffect(() => {
-    fetch(`${apiBase}/api/notifications`)
-      .then((r) => r.json())
-      .then(setItems)
+    Promise.all([
+      fetch(`${apiBase}/api/notifications`).then((r) => r.json()),
+      fetch(`${apiBase}/api/settings/web`).then((r) => r.json())
+    ])
+      .then(([itemsData, settings]) => {
+        setItems(Array.isArray(itemsData) ? itemsData : []);
+        setBanner(settings?.banner4 || "");
+      })
       .catch(console.error);
   }, [apiBase]);
 
@@ -45,6 +51,16 @@ const Notifications = ({ apiBase }) => {
         <h1>Government Notifications</h1>
         <p>Verified notices and public updates from civic authorities.</p>
       </section>
+
+      {banner && (
+        <section className="section banner-section">
+          <div className="container">
+            <div className="mid-banner">
+              <img className="banner-image" src={banner} alt="Notifications banner" loading="lazy" />
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="search-section">
         <div className="search-bar">
