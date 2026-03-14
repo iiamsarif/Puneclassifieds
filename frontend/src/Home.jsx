@@ -147,7 +147,16 @@ const Home = ({ apiBase }) => {
     if (!el) return;
     const items = el.querySelectorAll("[data-speed], .parallax-media");
     let ticking = false;
+    let active = false;
+
+    const applyStatic = () => {
+      items.forEach((node) => {
+        node.style.transform = "translateY(0px)";
+      });
+    };
+
     const onScroll = () => {
+      if (!active) return;
       if (ticking) return;
       ticking = true;
       requestAnimationFrame(() => {
@@ -162,12 +171,23 @@ const Home = ({ apiBase }) => {
         ticking = false;
       });
     };
-    onScroll();
+
+    const updateMode = () => {
+      const allow = window.innerWidth > 800;
+      active = allow;
+      if (!allow) {
+        applyStatic();
+      } else {
+        onScroll();
+      }
+    };
+
+    updateMode();
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
+    window.addEventListener("resize", updateMode);
     return () => {
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("resize", updateMode);
     };
   }, []);
 
@@ -487,7 +507,7 @@ const Home = ({ apiBase }) => {
                   <span className="muted">{premiumPosts[premiumIndex].location || "Premium Listing"}</span>
                 </div>
                 <h3>{premiumPosts[premiumIndex].title}</h3>
-                <p className="clamp-3">{cleanText(premiumPosts[premiumIndex].description)}</p>
+                <p className="clamp-2">{cleanText(premiumPosts[premiumIndex].description)}</p>
                 <NavLink className="ghost-btn" to={`/posts/${premiumPosts[premiumIndex]._id}`}>
                   Read More →
                 </NavLink>

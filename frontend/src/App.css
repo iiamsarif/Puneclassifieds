@@ -1616,6 +1616,32 @@ small { font-size: 13px; }
   will-change: transform;
 }
 
+@media (max-width: 768px) {
+  .parallax-tile img {
+    transition: none;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .parallax-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+    gap: 12px;
+  }
+  .parallax-tile {
+    min-height: 220px;
+  }
+  .parallax-tile.text {
+    padding: 28px 20px;
+    align-items: start;
+    justify-items: start;
+    text-align: left;
+    overflow: visible;
+    min-height: auto;
+  }
+}
+
 .parallax-media img {
   transition: transform 0.1s linear;
   will-change: transform;
