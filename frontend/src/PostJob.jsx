@@ -1,14 +1,41 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const PostJob = ({ apiBase }) => {
   const [form, setForm] = useState({
     jobTitle: "",
     description: "",
     location: "",
+    label: "",
     phone: "",
     whatsapp: ""
   });
+  const [locations, setLocations] = useState([]);
+  const [labels, setLabels] = useState([]);
   const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/locations`)
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) && setLocations(data))
+      .catch(console.error);
+  }, [apiBase]);
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/categories`)
+      .then((r) => r.json())
+      .then((data) => {
+        const match = (Array.isArray(data) ? data : []).find(
+          (cat) => cat.name && cat.name.toLowerCase() === "jobs"
+        );
+        if (match && match.labelsByType) {
+          const all = Object.values(match.labelsByType).flat();
+          setLabels(Array.from(new Set(all)));
+        } else {
+          setLabels([]);
+        }
+      })
+      .catch(console.error);
+  }, [apiBase]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,7 +53,7 @@ const PostJob = ({ apiBase }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Submission failed");
       setStatus("Submitted. Awaiting admin approval.");
-      setForm({ jobTitle: "", description: "", location: "", phone: "", whatsapp: "" });
+      setForm({ jobTitle: "", description: "", location: "", label: "", phone: "", whatsapp: "" });
     } catch (err) {
       setStatus(err.message);
     }
@@ -54,13 +81,27 @@ const PostJob = ({ apiBase }) => {
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             required
           />
-          <input
-            type="text"
-            placeholder="Location"
+          <select
             value={form.location}
             onChange={(e) => setForm({ ...form, location: e.target.value })}
             required
-          />
+          >
+            <option value="">Select Location</option>
+            {locations.map((loc) => (
+              <option key={loc} value={loc}>{loc}</option>
+            ))}
+          </select>
+          {labels.length > 0 && (
+            <select
+              value={form.label}
+              onChange={(e) => setForm({ ...form, label: e.target.value })}
+            >
+              <option value="">Select Label</option>
+              {labels.map((label) => (
+                <option key={label} value={label}>{label}</option>
+              ))}
+            </select>
+          )}
           <input
             type="text"
             placeholder="Phone"

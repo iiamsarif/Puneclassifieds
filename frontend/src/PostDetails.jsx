@@ -58,6 +58,7 @@ const PostDetails = ({ apiBase }) => {
         <div className="post-info">
           <span className="badge">{post.category}</span>
           {post.type && <span className="badge">{post.type}</span>}
+          {post.label && <span className="badge">{post.label}</span>}
           <h1>{post.title}</h1>
           <p>{post.description}</p>
           {post.location && <p className="muted">Location: {post.location}</p>}

@@ -13,46 +13,10 @@ const Posts = ({ apiBase }) => {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState(initialCategory);
   const [type, setType] = useState(initialType);
+  const [label, setLabel] = useState("");
   const [location, setLocation] = useState("");
   const [categories, setCategories] = useState([]);
-  const [locations] = useState([
-    "Andhra Pradesh",
-    "Arunachal Pradesh",
-    "Assam",
-    "Bihar",
-    "Chhattisgarh",
-    "Goa",
-    "Gujarat",
-    "Haryana",
-    "Himachal Pradesh",
-    "Jharkhand",
-    "Karnataka",
-    "Kerala",
-    "Madhya Pradesh",
-    "Maharashtra",
-    "Manipur",
-    "Meghalaya",
-    "Mizoram",
-    "Nagaland",
-    "Odisha",
-    "Punjab",
-    "Rajasthan",
-    "Sikkim",
-    "Tamil Nadu",
-    "Telangana",
-    "Tripura",
-    "Uttar Pradesh",
-    "Uttarakhand",
-    "West Bengal",
-    "Andaman and Nicobar Islands",
-    "Chandigarh",
-    "Dadra and Nagar Haveli and Daman and Diu",
-    "Delhi",
-    "Jammu and Kashmir",
-    "Ladakh",
-    "Lakshadweep",
-    "Puducherry"
-  ]);
+  const [locations, setLocations] = useState([]);
   const [posts, setPosts] = useState([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
@@ -73,6 +37,13 @@ const Posts = ({ apiBase }) => {
       .catch(console.error);
   }, [apiBase]);
 
+  useEffect(() => {
+    fetch(`${apiBase}/api/locations`)
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) && setLocations(data))
+      .catch(console.error);
+  }, [apiBase]);
+
   const loadPosts = async (pageNum) => {
     const params = new URLSearchParams();
     params.set("status", "approved");
@@ -81,6 +52,7 @@ const Posts = ({ apiBase }) => {
     if (search) params.set("search", search);
     if (category) params.set("category", category);
     if (type) params.set("type", type);
+    if (label) params.set("label", label);
     if (location) params.set("location", location);
     const res = await fetch(`${apiBase}/api/posts?${params.toString()}`);
     const data = await res.json();
@@ -102,13 +74,14 @@ const Posts = ({ apiBase }) => {
 
   useEffect(() => {
     loadPosts(page);
-  }, [page, search, category, type, location]);
+  }, [page, search, category, type, label, location]);
 
   useEffect(() => {
     const newCategory = query.get("category") || "";
     const newType = query.get("type") || "";
     setCategory(newCategory);
     setType(newType);
+    setLabel("");
     setPage(1);
   }, [query.toString()]);
 
@@ -123,6 +96,16 @@ const Posts = ({ apiBase }) => {
     const allTypes = categories.flatMap((cat) => (Array.isArray(cat.types) ? cat.types : []));
     return Array.from(new Set(allTypes));
   }, [categories, category]);
+
+  const labelOptions = useMemo(() => {
+    if (!category || !type) return [];
+    const match = categories.find(
+      (cat) => cat.name && cat.name.toLowerCase() === category.toLowerCase()
+    );
+    if (!match || !match.labelsByType) return [];
+    const labels = match.labelsByType[type] || [];
+    return Array.isArray(labels) ? labels : [];
+  }, [categories, category, type]);
 
   const pageNumbers = useMemo(() => {
     return Array.from({ length: Math.min(pages, 4) }, (_, i) => i + 1);
@@ -155,7 +138,7 @@ const Posts = ({ apiBase }) => {
           />
           <select
             value={category}
-            onChange={(e) => { setCategory(e.target.value); setType(""); setPage(1); }}
+            onChange={(e) => { setCategory(e.target.value); setType(""); setLabel(""); setPage(1); }}
           >
             <option value="">All Categories</option>
             {categories.map((cat) => (
@@ -164,12 +147,22 @@ const Posts = ({ apiBase }) => {
           </select>
           <select
             value={type}
-            onChange={(e) => { setType(e.target.value); setPage(1); }}
+            onChange={(e) => { setType(e.target.value); setLabel(""); setPage(1); }}
             disabled={typeOptions.length === 0}
           >
             <option value="">All Types</option>
             {typeOptions.map((t) => (
               <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <select
+            value={label}
+            onChange={(e) => { setLabel(e.target.value); setPage(1); }}
+            disabled={labelOptions.length === 0}
+          >
+            <option value="">All Labels</option>
+            {labelOptions.map((lbl) => (
+              <option key={lbl} value={lbl}>{lbl}</option>
             ))}
           </select>
           <select
@@ -195,8 +188,18 @@ const Posts = ({ apiBase }) => {
       </section>
 
       <section className="grid">
-        {posts.map((post) => (
-          <article key={post._id} className="card media-card">
+        {posts.map((post, idx) => (
+          <article
+            key={post._id}
+            className="card media-card post-card"
+            data-no={`NO. ${String(idx + 1 + (page - 1) * 6).padStart(2, "0")}`}
+            onClick={() => navigate(`/posts/${post._id}`)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") navigate(`/posts/${post._id}`);
+            }}
+          >
             <img src={(post.imageUrls && post.imageUrls[0]) || post.imageUrl || post.imageData || fallbackImage} alt={post.title} loading="lazy" />
             <div>
               <span className="badge">{post.category}</span>

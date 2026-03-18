@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const PostPet = ({ apiBase }) => {
   const [form, setForm] = useState({
@@ -7,11 +7,38 @@ const PostPet = ({ apiBase }) => {
     age: "",
     gender: "",
     location: "",
+    label: "",
     photos: "",
     contactPerson: "",
     phone: ""
   });
   const [status, setStatus] = useState("");
+  const [locations, setLocations] = useState([]);
+  const [labels, setLabels] = useState([]);
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/locations`)
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) && setLocations(data))
+      .catch(console.error);
+  }, [apiBase]);
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/categories`)
+      .then((r) => r.json())
+      .then((data) => {
+        const match = (Array.isArray(data) ? data : []).find(
+          (cat) => cat.name && cat.name.toLowerCase() === "pets"
+        );
+        if (match && match.labelsByType) {
+          const all = Object.values(match.labelsByType).flat();
+          setLabels(Array.from(new Set(all)));
+        } else {
+          setLabels([]);
+        }
+      })
+      .catch(console.error);
+  }, [apiBase]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,7 +56,7 @@ const PostPet = ({ apiBase }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Submission failed");
       setStatus("Submitted. Awaiting admin approval.");
-      setForm({ petName: "", breed: "", age: "", gender: "", location: "", photos: "", contactPerson: "", phone: "" });
+      setForm({ petName: "", breed: "", age: "", gender: "", location: "", label: "", photos: "", contactPerson: "", phone: "" });
     } catch (err) {
       setStatus(err.message);
     }
@@ -71,13 +98,27 @@ const PostPet = ({ apiBase }) => {
             onChange={(e) => setForm({ ...form, gender: e.target.value })}
             required
           />
-          <input
-            type="text"
-            placeholder="Location"
+          <select
             value={form.location}
             onChange={(e) => setForm({ ...form, location: e.target.value })}
             required
-          />
+          >
+            <option value="">Select Location</option>
+            {locations.map((loc) => (
+              <option key={loc} value={loc}>{loc}</option>
+            ))}
+          </select>
+          {labels.length > 0 && (
+            <select
+              value={form.label}
+              onChange={(e) => setForm({ ...form, label: e.target.value })}
+            >
+              <option value="">Select Label</option>
+              {labels.map((label) => (
+                <option key={label} value={label}>{label}</option>
+              ))}
+            </select>
+          )}
           <input
             type="text"
             placeholder="Photos (URL)"

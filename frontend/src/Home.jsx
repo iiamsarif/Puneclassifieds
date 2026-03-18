@@ -67,6 +67,7 @@ const Home = ({ apiBase }) => {
   ];
   const [paymentInfo, setPaymentInfo] = useState(null);
   const [premiumIndex, setPremiumIndex] = useState(0);
+  const heroHeadline = "Discover verified local news, listings, and opportunities in Pune.";
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -141,6 +142,25 @@ const Home = ({ apiBase }) => {
     }, 5000);
     return () => clearInterval(timer);
   }, [premiumPosts.length]);
+
+  useEffect(() => {
+    const handleHeroZoom = () => {
+      const hero = document.querySelector(".hero-section");
+      if (!hero) return;
+      const rect = hero.getBoundingClientRect();
+      const viewport = window.innerHeight || 1;
+      const progress = Math.min(Math.max((viewport - rect.top) / viewport, 0), 1);
+      const scale = 1 + progress * 0.4;
+      hero.style.setProperty("--hero-zoom", scale.toFixed(3));
+    };
+    handleHeroZoom();
+    window.addEventListener("scroll", handleHeroZoom, { passive: true });
+    window.addEventListener("resize", handleHeroZoom);
+    return () => {
+      window.removeEventListener("scroll", handleHeroZoom);
+      window.removeEventListener("resize", handleHeroZoom);
+    };
+  }, []);
 
   useEffect(() => {
     const el = parallaxRef.current;
@@ -381,13 +401,19 @@ const Home = ({ apiBase }) => {
       <section
         className="hero-section"
         style={{
-          backgroundImage: heroBg ? `url(${heroBg})` : undefined
+          "--hero-bg": heroBg ? `url(${heroBg})` : "none"
         }}
       >
         <div className="container hero-layout">
           <div className="hero-content">
             <div className="hero-tag section-label">Trusted Community Marketplace</div>
-            <h1 className="hero-title">Discover verified local news, listings, and opportunities in Pune.</h1>
+            <h1 className="hero-title hero-fall">
+              {heroHeadline.split(" ").map((word, idx) => (
+                <span className="hero-word" key={`${word}-${idx}`}>
+                  {word}&nbsp;
+                </span>
+              ))}
+            </h1>
             <p className="hero-subtitle">
               PuneClassifieds is a premium civic portal where citizens explore government updates,
               post community services, and access curated listings with confidence.
@@ -548,8 +574,18 @@ const Home = ({ apiBase }) => {
             </div>
             {searchResults.length > 0 && (
               <div className="search-results">
-                {searchResults.map((item) => (
-                  <div key={item._id || item.title} className="card media-card">
+                {searchResults.map((item, idx) => (
+                  <div
+                    key={item._id || item.title}
+                    className="card media-card post-card"
+                    data-no={`NO. ${String(idx + 1).padStart(2, "0")}`}
+                    onClick={() => item?._id && navigate(`/posts/${item._id}`)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && item?._id) navigate(`/posts/${item._id}`);
+                    }}
+                  >
                     {((item.imageUrls && item.imageUrls[0]) || item.imageUrl || item.imageData) && (
                       <img
                         src={(item.imageUrls && item.imageUrls[0]) || item.imageUrl || item.imageData}
@@ -581,8 +617,18 @@ const Home = ({ apiBase }) => {
             <NavLink to="/posts">View all</NavLink>
           </div>
           <div className="grid featured-grid">
-            {posts.slice(0, 15).map((item) => (
-              <article key={item._id} className="card media-card featured-card">
+            {posts.slice(0, 15).map((item, idx) => (
+              <article
+                key={item._id}
+                className="card media-card featured-card post-card"
+                data-no={`NO. ${String(idx + 1).padStart(2, "0")}`}
+                onClick={() => navigate(`/posts/${item._id}`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") navigate(`/posts/${item._id}`);
+                }}
+              >
                 <img src={(item.imageUrls && item.imageUrls[0]) || item.imageUrl || item.imageData || fallbackHero} alt={item.title} loading="lazy" />
                 <div>
                   <span className="badge">{item.category}</span>
@@ -653,8 +699,13 @@ const Home = ({ apiBase }) => {
             <NavLink to="/news">View all</NavLink>
           </div>
           <div className="grid">
-            {news.slice(0, 3).map((item) => (
-              <NavLink key={item._id} to={`/news/${item._id}`} className="card media-card">
+            {news.slice(0, 3).map((item, idx) => (
+              <NavLink
+                key={item._id}
+                to={`/news/${item._id}`}
+                className="card media-card post-card news-card"
+                data-no={`NO. ${String(idx + 1).padStart(2, "0")}`}
+              >
                 <img src={item.imageData || item.image || fallbackHero} alt={item.title} loading="lazy" />
                 <div>
                   <span className="badge">{item.category}</span>

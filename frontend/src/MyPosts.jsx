@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 const MyPosts = ({ apiBase }) => {
   const [posts, setPosts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [editing, setEditing] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
   const [status, setStatus] = useState("");
@@ -15,6 +16,7 @@ const MyPosts = ({ apiBase }) => {
     title: "",
     category: "",
     type: "",
+    label: "",
     breed: "",
     age: "",
     gender: "",
@@ -88,6 +90,13 @@ const MyPosts = ({ apiBase }) => {
       .catch(console.error);
   }, [apiBase]);
 
+  useEffect(() => {
+    fetch(`${apiBase}/api/locations`)
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) && setLocations(data))
+      .catch(console.error);
+  }, [apiBase]);
+
   const handleEditImages = (e) => {
     setImageReady(true);
     const incoming = Array.from(e?.target?.files || []);
@@ -128,6 +137,7 @@ const MyPosts = ({ apiBase }) => {
       title: post.title,
       category: post.category,
       type: post.type || "",
+      label: post.label || "",
       breed: post.breed || "",
       age: post.age || "",
       gender: post.gender || "",
@@ -176,6 +186,7 @@ const MyPosts = ({ apiBase }) => {
       formData.append("title", form.title);
       formData.append("category", form.category);
       formData.append("type", form.type || "");
+      formData.append("label", form.label || "");
       formData.append("breed", form.breed || "");
       formData.append("age", form.age || "");
       formData.append("gender", form.gender || "");
@@ -214,6 +225,13 @@ const MyPosts = ({ apiBase }) => {
       setSaving(false);
     }
   };
+
+  const editCategory = categories.find(
+    (cat) => cat.name && form.category && cat.name.toLowerCase() === form.category.toLowerCase()
+  );
+  const labelOptions = editCategory && form.type
+    ? (editCategory.labelsByType && editCategory.labelsByType[form.type]) || []
+    : [];
 
   return (
     <main className="page">
@@ -266,17 +284,34 @@ const MyPosts = ({ apiBase }) => {
                   (cat) => cat.name && form.category && cat.name.toLowerCase() === form.category.toLowerCase()
                 );
                 const types = match && Array.isArray(match.types) ? match.types : [];
+                const labels = match && form.type
+                  ? (match.labelsByType && match.labelsByType[form.type]) || []
+                  : [];
                 if (types.length === 0) return null;
                 return (
-                  <select
-                    value={form.type}
-                    onChange={(e) => setForm({ ...form, type: e.target.value })}
-                  >
-                    <option value="">Select Type</option>
-                    {types.map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
+                  <>
+                    <select
+                      value={form.type}
+                      onChange={(e) => setForm({ ...form, type: e.target.value, label: "" })}
+                    >
+                      <option value="">Select Type</option>
+                      {types.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                    {labels.length > 0 && (
+                      <select
+                        value={form.label}
+                        onChange={(e) => setForm({ ...form, label: e.target.value })}
+                        required
+                      >
+                        <option value="">Select Label</option>
+                        {labels.map((label) => (
+                          <option key={label} value={label}>{label}</option>
+                        ))}
+                      </select>
+                    )}
+                  </>
                 );
               })()}
               {form.category.toLowerCase() === "pets" && (
@@ -332,13 +367,16 @@ const MyPosts = ({ apiBase }) => {
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 required
               />
-              <input
-                type="text"
-                placeholder="Location"
+              <select
                 value={form.location}
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
                 required
-              />
+              >
+                <option value="">Select Location</option>
+                {locations.map((loc) => (
+                  <option key={loc} value={loc}>{loc}</option>
+                ))}
+              </select>
               {form.category.toLowerCase() === "pets" && (
                 <>
                   <input

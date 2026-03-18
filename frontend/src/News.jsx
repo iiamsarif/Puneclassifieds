@@ -75,8 +75,13 @@ const News = ({ apiBase }) => {
       </section>
 
       <section className="grid">
-        {pageItems.map((item) => (
-          <NavLink key={item._id} to={`/news/${item._id}`} className="card media-card">
+        {pageItems.map((item, idx) => (
+          <NavLink
+            key={item._id}
+            to={`/news/${item._id}`}
+            className="card media-card post-card news-card"
+            data-no={`NO. ${String(idx + 1 + (page - 1) * PAGE_SIZE).padStart(2, "0")}`}
+          >
             <img src={item.imageData || item.image || fallbackImage} alt={item.title} loading="lazy" />
             <div>
               <span className="badge">{item.category}</span>

@@ -28,10 +28,14 @@ const NotificationsDetail = ({ apiBase }) => {
     <main className="page">
       <section className="news-detail">
         <div className="news-detail-body">
-          <span className="badge">{item.category}</span>
+          <span className="badge">{item.department || item.category}</span>
           <h1>{item.title}</h1>
-          <p className="muted">{item.notificationDate}</p>
-          <p className="news-text">{item.description}</p>
+          <p className="muted">Serial No: {item.serialNo || "N/A"}</p>
+          <p className="muted">Subject: {item.subject || "N/A"}</p>
+          <p className="muted">Department: {item.department || "N/A"}</p>
+          <p className="muted">Ref Number: {item.refNumber || "N/A"}</p>
+          <p className="muted">Date of Issue: {item.dateOfIssue || item.notificationDate || "N/A"}</p>
+          <p className="news-text">{item.summary || item.description}</p>
           {item.pdfData || item.pdfFile ? (
             <a className="primary-btn" href={item.pdfData || item.pdfFile} download>
               Download PDF

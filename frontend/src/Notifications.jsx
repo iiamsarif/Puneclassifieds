@@ -25,9 +25,18 @@ const Notifications = ({ apiBase }) => {
     if (!query.trim()) return items;
     const q = query.toLowerCase();
     return items.filter((item) =>
-      [item.title, item.category]
+      [
+        item.title,
+        item.department,
+        item.subject,
+        item.summary,
+        item.refNumber,
+        item.serialNo,
+        item.dateOfIssue,
+        item.notificationDate
+      ]
         .filter(Boolean)
-        .some((field) => field.toLowerCase().includes(q))
+        .some((field) => String(field).toLowerCase().includes(q))
     );
   }, [items, query]);
 
@@ -66,7 +75,7 @@ const Notifications = ({ apiBase }) => {
         <div className="search-bar">
           <input
             type="text"
-            placeholder="Search notifications by title or category..."
+            placeholder="Search by date, department, title, or summary..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -74,11 +83,19 @@ const Notifications = ({ apiBase }) => {
       </section>
 
       <section className="grid">
-        {pageItems.map((item) => (
-          <NavLink key={item._id} to={`/notifications/${item._id}`} className="card">
-            <span className="badge">{item.category}</span>
-            <h4>{item.title}</h4>
-            <p className="muted">{item.notificationDate}</p>
+        {pageItems.map((item, idx) => (
+          <NavLink
+            key={item._id}
+            to={`/notifications/${item._id}`}
+            className="card media-card post-card news-card"
+            data-no={`NO. ${String(idx + 1 + (page - 1) * PAGE_SIZE).padStart(2, "0")}`}
+          >
+            <div>
+              <span className="badge">{item.department || item.category || "Notice"}</span>
+              <h4>{item.title}</h4>
+              <p className="muted">{item.dateOfIssue || item.notificationDate}</p>
+              {item.subject && <p className="muted">{item.subject}</p>}
+            </div>
           </NavLink>
         ))}
       </section>

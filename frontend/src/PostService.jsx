@@ -2,10 +2,12 @@ import React, { useEffect, useState } from "react";
 
 const PostService = ({ apiBase }) => {
   const [categories, setCategories] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [form, setForm] = useState({
     title: "",
     category: "",
     type: "",
+    label: "",
     breed: "",
     age: "",
     gender: "",
@@ -54,6 +56,13 @@ const PostService = ({ apiBase }) => {
       .catch(console.error);
   }, [apiBase]);
 
+  useEffect(() => {
+    fetch(`${apiBase}/api/locations`)
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) && setLocations(data))
+      .catch(console.error);
+  }, [apiBase]);
+
   const handleImages = (e) => {
     const incoming = Array.from(e?.target?.files || []);
     if (!incoming.length) return;
@@ -96,6 +105,7 @@ const PostService = ({ apiBase }) => {
       formData.append("title", form.title);
       formData.append("category", form.category);
       formData.append("type", form.type || "");
+      formData.append("label", form.label || "");
       formData.append("breed", form.breed || "");
       formData.append("age", form.age || "");
       formData.append("gender", form.gender || "");
@@ -124,6 +134,7 @@ const PostService = ({ apiBase }) => {
         title: "",
         category: "",
         type: "",
+        label: "",
         breed: "",
         age: "",
         gender: "",
@@ -151,6 +162,9 @@ const PostService = ({ apiBase }) => {
   );
   const categoryTypes = selectedCategory && Array.isArray(selectedCategory.types)
     ? selectedCategory.types
+    : [];
+  const categoryLabels = selectedCategory && form.type
+    ? (selectedCategory.labelsByType && selectedCategory.labelsByType[form.type]) || []
     : [];
   const showPetFields = form.category.toLowerCase() === "pets";
 
@@ -182,12 +196,24 @@ const PostService = ({ apiBase }) => {
           {categoryTypes.length > 0 && (
             <select
               value={form.type}
-              onChange={(e) => setForm({ ...form, type: e.target.value })}
+              onChange={(e) => setForm({ ...form, type: e.target.value, label: "" })}
               required
             >
               <option value="">Select Type</option>
               {categoryTypes.map((type) => (
                 <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+          )}
+          {categoryLabels.length > 0 && (
+            <select
+              value={form.label}
+              onChange={(e) => setForm({ ...form, label: e.target.value })}
+              required
+            >
+              <option value="">Select Label</option>
+              {categoryLabels.map((label) => (
+                <option key={label} value={label}>{label}</option>
               ))}
             </select>
           )}
@@ -244,13 +270,16 @@ const PostService = ({ apiBase }) => {
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             required
           />
-          <input
-            type="text"
-            placeholder="Location"
+          <select
             value={form.location}
             onChange={(e) => setForm({ ...form, location: e.target.value })}
             required
-          />
+          >
+            <option value="">Select Location</option>
+            {locations.map((loc) => (
+              <option key={loc} value={loc}>{loc}</option>
+            ))}
+          </select>
           {showPetFields && (
             <>
               <input

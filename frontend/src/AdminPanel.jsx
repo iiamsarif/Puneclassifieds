@@ -28,6 +28,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [approved, setApproved] = useState({ jobs: [], properties: [], pets: [], posts: [] });
   const [users, setUsers] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [newsList, setNewsList] = useState([]);
   const [noteList, setNoteList] = useState([]);
   const [trending, setTrending] = useState([]);
@@ -38,16 +39,44 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     iconData: "",
     types: []
   });
+  const [labelModalOpen, setLabelModalOpen] = useState(false);
+  const [labelCategoryId, setLabelCategoryId] = useState("");
+  const [labelType, setLabelType] = useState("");
+  const [labelInput, setLabelInput] = useState("");
+  const [labelDraft, setLabelDraft] = useState({});
+  const [locationForm, setLocationForm] = useState({ name: "" });
+  const [locationEditOpen, setLocationEditOpen] = useState(false);
+  const [editingLocation, setEditingLocation] = useState(null);
   const [typeInput, setTypeInput] = useState("");
   const [newsForm, setNewsForm] = useState({ title: "", category: "", description: "", image: "", imageData: "", date: "" });
-  const [noteForm, setNoteForm] = useState({ title: "", description: "", category: "", pdfFile: "", pdfData: "", notificationDate: "" });
+  const [noteForm, setNoteForm] = useState({
+    serialNo: "",
+    subject: "",
+    department: "",
+    title: "",
+    summary: "",
+    refNumber: "",
+    dateOfIssue: "",
+    pdfFile: "",
+    pdfData: ""
+  });
   const [editNewsOpen, setEditNewsOpen] = useState(false);
   const [editingNews, setEditingNews] = useState(null);
   const [editNewsForm, setEditNewsForm] = useState({ title: "", category: "", description: "", image: "", imageData: "", date: "" });
   const [editNewsFile, setEditNewsFile] = useState(null);
   const [editNoteOpen, setEditNoteOpen] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
-  const [editNoteForm, setEditNoteForm] = useState({ title: "", description: "", category: "", pdfFile: "", pdfData: "", notificationDate: "" });
+  const [editNoteForm, setEditNoteForm] = useState({
+    serialNo: "",
+    subject: "",
+    department: "",
+    title: "",
+    summary: "",
+    refNumber: "",
+    dateOfIssue: "",
+    pdfFile: "",
+    pdfData: ""
+  });
   const [editNoteFile, setEditNoteFile] = useState(null);
   const [settings, setSettings] = useState({
     heroImage: "",
@@ -65,6 +94,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     title: "",
     category: "",
     type: "",
+    label: "",
     paid: false,
     breed: "",
     age: "",
@@ -112,6 +142,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [approvedPage, setApprovedPage] = useState(1);
   const [usersPage, setUsersPage] = useState(1);
   const [categoriesPage, setCategoriesPage] = useState(1);
+  const [locationsPage, setLocationsPage] = useState(1);
   const [newsPage, setNewsPage] = useState(1);
   const [notesPage, setNotesPage] = useState(1);
   const [userEditOpen, setUserEditOpen] = useState(false);
@@ -162,6 +193,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       if (parsed.approved) setApproved(parsed.approved);
       if (parsed.users) setUsers(parsed.users);
       if (parsed.categories) setCategories(parsed.categories);
+      if (parsed.locations) setLocations(parsed.locations);
       if (parsed.newsList) setNewsList(parsed.newsList);
       if (parsed.noteList) setNoteList(parsed.noteList);
       if (parsed.trending) setTrending(parsed.trending);
@@ -187,12 +219,13 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       approved,
       users,
       categories,
+      locations,
       newsList,
       noteList,
       trending,
       settings
     });
-  }, [pending, approved, users, categories, newsList, noteList, trending, settings]);
+  }, [pending, approved, users, categories, locations, newsList, noteList, trending, settings]);
 
   const loadData = async (section = "dashboard") => {
     try {
@@ -224,6 +257,13 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         jobs.push(
           fetchJson(`${apiBase}/api/categories`).then((data) => {
             if (Array.isArray(data)) setCategories(data);
+          })
+        );
+      }
+      if (isAll || section === "dashboard" || section === "locations") {
+        jobs.push(
+          fetchJson(`${apiBase}/api/admin/locations`, { headers: baseHeaders }).then((data) => {
+            if (Array.isArray(data)) setLocations(data);
           })
         );
       }
@@ -539,6 +579,146 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     }, "Category deleted");
   };
 
+  const openLabelManager = () => {
+    const first = categories[0];
+    if (first) {
+      setLabelCategoryId(first._id);
+      setLabelDraft(first.labelsByType || {});
+      const types = Array.isArray(first.types) ? first.types : [];
+      setLabelType(types[0] || "");
+    }
+    setLabelModalOpen(true);
+  };
+
+  useEffect(() => {
+    if (!labelCategoryId) return;
+    const selected = categories.find((cat) => cat._id === labelCategoryId);
+    if (!selected) return;
+    setLabelDraft(selected.labelsByType || {});
+    const types = Array.isArray(selected.types) ? selected.types : [];
+    if (types.length && !types.includes(labelType)) {
+      setLabelType(types[0]);
+    }
+  }, [labelCategoryId, categories]);
+
+  const addLabel = () => {
+    const value = labelInput.trim();
+    if (!value || !labelType) return;
+    setLabelDraft((prev) => {
+      const next = { ...prev };
+      const list = Array.isArray(next[labelType]) ? next[labelType].slice() : [];
+      if (!list.includes(value)) list.push(value);
+      next[labelType] = list;
+      return next;
+    });
+    setLabelInput("");
+  };
+
+  const removeLabel = (value) => {
+    if (!labelType) return;
+    setLabelDraft((prev) => {
+      const next = { ...prev };
+      next[labelType] = (next[labelType] || []).filter((item) => item !== value);
+      return next;
+    });
+  };
+
+  const saveLabels = async (e) => {
+    e.preventDefault();
+    const selected = categories.find((cat) => cat._id === labelCategoryId);
+    if (!selected) return;
+    await withLoading(async () => {
+      const formData = new FormData();
+      formData.append("name", selected.name);
+      formData.append("description", selected.description || "");
+      formData.append("types", JSON.stringify(selected.types || []));
+      formData.append("labelsByType", JSON.stringify(labelDraft || {}));
+      if (selected.iconUrl) formData.append("iconUrl", selected.iconUrl);
+      const res = await fetch(`${apiBase}/api/categories/${labelCategoryId}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await safeJson(res);
+      if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
+      if (!res.ok) throw new Error(data.message || "Failed to update labels.");
+      setCategories((prev) =>
+        prev.map((cat) =>
+          cat._id === labelCategoryId ? { ...cat, labelsByType: labelDraft } : cat
+        )
+      );
+      setLabelModalOpen(false);
+    }, "Labels updated");
+  };
+
+  const addLocation = async (e) => {
+    e.preventDefault();
+    const name = locationForm.name.trim();
+    if (!name) return;
+    await withLoading(async () => {
+      const res = await fetch(`${apiBase}/api/admin/locations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ name })
+      });
+      const data = await safeJson(res);
+      if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
+      if (!res.ok) throw new Error(data.message || "Failed to add location.");
+      if (data.item) setLocations((prev) => [data.item, ...prev]);
+      setLocationsPage(1);
+      setLocationForm({ name: "" });
+      void loadData(active);
+    }, "Location added");
+  };
+
+  const startEditLocation = (loc) => {
+    setEditingLocation(loc._id);
+    setLocationForm({ name: loc.name || "" });
+    setLocationEditOpen(true);
+  };
+
+  const saveLocation = async (e) => {
+    e.preventDefault();
+    const name = locationForm.name.trim();
+    if (!name) return;
+    await withLoading(async () => {
+      const res = await fetch(`${apiBase}/api/admin/locations/${editingLocation}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ name })
+      });
+      const data = await safeJson(res);
+      if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
+      if (!res.ok) throw new Error(data.message || "Failed to update location.");
+      setLocations((prev) =>
+        prev.map((loc) => (loc._id === editingLocation ? { ...loc, name } : loc))
+      );
+      setLocationEditOpen(false);
+      setEditingLocation(null);
+      setLocationForm({ name: "" });
+      void loadData(active);
+    }, "Location updated");
+  };
+
+  const deleteLocation = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this location?")) return;
+    await withLoading(async () => {
+      await fetch(`${apiBase}/api/admin/locations/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setLocations((prev) => prev.filter((loc) => loc._id !== id));
+      clampPage(locations.length - 1, locationsPage, setLocationsPage);
+      void loadData(active);
+    }, "Location deleted");
+  };
+
   const addNews = async (e) => {
     e.preventDefault();
     setStatus("");
@@ -659,20 +839,27 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       const tempId = `temp-${Date.now()}`;
       const tempItem = {
         _id: tempId,
+        serialNo: noteForm.serialNo,
+        subject: noteForm.subject,
+        department: noteForm.department,
         title: noteForm.title,
-        description: noteForm.description,
-        category: noteForm.category,
+        summary: noteForm.summary,
+        refNumber: noteForm.refNumber,
+        dateOfIssue: noteForm.dateOfIssue,
         pdfFile: noteForm.pdfFile,
         pdfData: noteForm.pdfData,
-        notificationDate: noteForm.notificationDate
+        category: noteForm.department
       };
       setNoteList((prev) => [tempItem, ...prev]);
       setNotesPage(1);
       const formData = new FormData();
+      formData.append("serialNo", noteForm.serialNo);
+      formData.append("subject", noteForm.subject);
+      formData.append("department", noteForm.department);
       formData.append("title", noteForm.title);
-      formData.append("description", noteForm.description);
-      formData.append("category", noteForm.category);
-      formData.append("notificationDate", noteForm.notificationDate);
+      formData.append("summary", noteForm.summary);
+      formData.append("refNumber", noteForm.refNumber);
+      formData.append("dateOfIssue", noteForm.dateOfIssue);
       if (noteForm.pdfFile.trim()) formData.append("pdfFile", noteForm.pdfFile.trim());
       if (notePdfFile) formData.append("pdf", notePdfFile);
       const res = await fetch(`${apiBase}/api/notifications`, {
@@ -686,7 +873,17 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       if (data.item) {
         setNoteList((prev) => prev.map((item) => (item._id === tempId ? data.item : item)));
       }
-      setNoteForm({ title: "", description: "", category: "", pdfFile: "", pdfData: "", notificationDate: "" });
+      setNoteForm({
+        serialNo: "",
+        subject: "",
+        department: "",
+        title: "",
+        summary: "",
+        refNumber: "",
+        dateOfIssue: "",
+        pdfFile: "",
+        pdfData: ""
+      });
       setNotePdfFile(null);
       setPdfReady(true);
       void loadData(active);
@@ -707,12 +904,15 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const startEditNotification = (item) => {
     setEditingNote(item._id);
     setEditNoteForm({
+      serialNo: item.serialNo || "",
+      subject: item.subject || "",
+      department: item.department || item.category || "",
       title: item.title || "",
-      description: item.description || "",
-      category: item.category || "",
+      summary: item.summary || item.description || "",
+      refNumber: item.refNumber || "",
+      dateOfIssue: item.dateOfIssue || item.notificationDate || "",
       pdfFile: item.pdfFile || "",
-      pdfData: item.pdfData || "",
-      notificationDate: item.notificationDate || ""
+      pdfData: item.pdfData || ""
     });
     setEditNoteFile(null);
     setEditNoteOpen(true);
@@ -722,10 +922,13 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     e.preventDefault();
     await withLoading(async () => {
       const formData = new FormData();
+      formData.append("serialNo", editNoteForm.serialNo);
+      formData.append("subject", editNoteForm.subject);
+      formData.append("department", editNoteForm.department);
       formData.append("title", editNoteForm.title);
-      formData.append("description", editNoteForm.description);
-      formData.append("category", editNoteForm.category);
-      formData.append("notificationDate", editNoteForm.notificationDate);
+      formData.append("summary", editNoteForm.summary);
+      formData.append("refNumber", editNoteForm.refNumber);
+      formData.append("dateOfIssue", editNoteForm.dateOfIssue);
       if (editNoteForm.pdfFile.trim()) formData.append("pdfFile", editNoteForm.pdfFile.trim());
       if (editNoteFile) formData.append("pdf", editNoteFile);
       const res = await fetch(`${apiBase}/api/notifications/${editingNote}`, {
@@ -848,6 +1051,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       title: post.title || "",
       category: post.category || "",
       type: post.type || "",
+      label: post.label || "",
       paid: !!post.paid,
       breed: post.breed || "",
       age: post.age || "",
@@ -887,6 +1091,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         title: data.post.title,
         category: data.post.category,
         type: data.post.type || "",
+        label: data.post.label || "",
         paid: !!data.post.paid,
         breed: data.post.breed || "",
         age: data.post.age || "",
@@ -929,6 +1134,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       formData.append("title", editForm.title);
       formData.append("category", editForm.category);
       formData.append("type", editForm.type || "");
+      formData.append("label", editForm.label || "");
       formData.append("breed", editForm.breed || "");
       formData.append("age", editForm.age || "");
       formData.append("gender", editForm.gender || "");
@@ -1030,6 +1236,16 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     return match && Array.isArray(match.types) ? match.types : [];
   }, [categories, editForm.category]);
 
+  const editCategoryLabels = useMemo(() => {
+    if (!editForm.category || !editForm.type) return [];
+    const match = categories.find(
+      (cat) => cat.name && cat.name.toLowerCase() === editForm.category.toLowerCase()
+    );
+    if (!match || !match.labelsByType) return [];
+    const labels = match.labelsByType[editForm.type] || [];
+    return Array.isArray(labels) ? labels : [];
+  }, [categories, editForm.category, editForm.type]);
+
   const showEditPetFields = editForm.category.toLowerCase() === "pets";
 
   const allPostsCount = approved.posts.length + pending.posts.length;
@@ -1044,8 +1260,12 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const approvedPageItems = useMemo(() => paginate(approved.posts, approvedPage), [approved.posts, approvedPage]);
   const usersPageItems = useMemo(() => paginate(users, usersPage), [users, usersPage]);
   const categoriesPageItems = useMemo(() => paginate(categories, categoriesPage), [categories, categoriesPage]);
+  const locationsPageItems = useMemo(() => paginate(locations, locationsPage), [locations, locationsPage]);
   const newsPageItems = useMemo(() => paginate(newsList, newsPage), [newsList, newsPage]);
   const notesPageItems = useMemo(() => paginate(noteList, notesPage), [noteList, notesPage]);
+  const selectedLabelCategory = categories.find((cat) => cat._id === labelCategoryId);
+  const labelTypes = Array.isArray(selectedLabelCategory?.types) ? selectedLabelCategory.types : [];
+  const labelList = labelType ? (labelDraft[labelType] || []) : [];
 
   useEffect(() => {
     if (!chartRef.current || active !== "dashboard") return;
@@ -1110,6 +1330,10 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         <button className={active === "categories" ? "active" : ""} onClick={() => { setActive("categories"); setSidebarOpen(false); }}>
           <span className="admin-nav-icon">🗂️</span>
           Categories
+        </button>
+        <button className={active === "locations" ? "active" : ""} onClick={() => { setActive("locations"); setSidebarOpen(false); }}>
+          <span className="admin-nav-icon">📍</span>
+          Locations
         </button>
         <button className={active === "news" ? "active" : ""} onClick={() => { setActive("news"); setSidebarOpen(false); }}>
           <span className="admin-nav-icon">📰</span>
@@ -1263,11 +1487,22 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 {editCategoryTypes.length > 0 && (
                   <select
                     value={editForm.type}
-                    onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
+                    onChange={(e) => setEditForm({ ...editForm, type: e.target.value, label: "" })}
                   >
                     <option value="">Select Type</option>
                     {editCategoryTypes.map((type) => (
                       <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                )}
+                {editCategoryLabels.length > 0 && (
+                  <select
+                    value={editForm.label}
+                    onChange={(e) => setEditForm({ ...editForm, label: e.target.value })}
+                  >
+                    <option value="">Select Label</option>
+                    {editCategoryLabels.map((label) => (
+                      <option key={label} value={label}>{label}</option>
                     ))}
                   </select>
                 )}
@@ -1324,13 +1559,16 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                   required
                 />
-                <input
-                  type="text"
-                  placeholder="Location"
+                <select
                   value={editForm.location}
                   onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
                   required
-                />
+                >
+                  <option value="">Select Location</option>
+                  {locations.map((loc) => (
+                    <option key={loc._id || loc.name || loc} value={loc.name || loc}>{loc.name || loc}</option>
+                  ))}
+                </select>
                 {showEditPetFields && (
                   <>
                     <input
@@ -1491,7 +1729,10 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
           <section className="section">
             <div className="section-head">
               <h2>Category Manager</h2>
-              <button className="primary-btn" onClick={() => setCategoryOpen(true)}>Add Category</button>
+              <div className="action-row">
+                <button className="ghost-btn" onClick={openLabelManager}>Manage Labels</button>
+                <button className="primary-btn" onClick={() => setCategoryOpen(true)}>Add Category</button>
+              </div>
             </div>
             <div className="grid">
               {categoriesPageItems.map((cat) => (
@@ -1521,6 +1762,57 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
             </div>
             {renderPager(categories, categoriesPage, setCategoriesPage)}
           </section>
+        )}
+
+        {active === "locations" && (
+          <section className="section">
+            <div className="section-head">
+              <h2>Location Manager</h2>
+            </div>
+            <form className="form-card" onSubmit={addLocation}>
+              <input
+                type="text"
+                placeholder="Location Name"
+                value={locationForm.name}
+                onChange={(e) => setLocationForm({ name: e.target.value })}
+                required
+              />
+              <button className="primary-btn" type="submit">Add Location</button>
+            </form>
+            <div className="grid">
+              {locationsPageItems.map((loc) => (
+                <div key={loc._id} className="card">
+                  <h4>{loc.name}</h4>
+                  <div className="action-row">
+                    <button className="ghost-btn" onClick={() => startEditLocation(loc)}>Edit</button>
+                    <button className="ghost-btn" onClick={() => deleteLocation(loc._id)}>Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {renderPager(locations, locationsPage, setLocationsPage)}
+          </section>
+        )}
+
+        {locationEditOpen && (
+          <div className="modal-overlay" onClick={() => setLocationEditOpen(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-head">
+                <h3>Edit Location</h3>
+                <button className="ghost-btn" onClick={() => setLocationEditOpen(false)}>Close</button>
+              </div>
+              <form className="form-card" onSubmit={saveLocation}>
+                <input
+                  type="text"
+                  placeholder="Location Name"
+                  value={locationForm.name}
+                  onChange={(e) => setLocationForm({ name: e.target.value })}
+                  required
+                />
+                <button className="primary-btn" type="submit">Save Location</button>
+              </form>
+            </div>
+          </div>
         )}
 
         {categoryOpen && (
@@ -1564,7 +1856,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                     {categoryForm.types.map((type) => (
                       <div key={type} className="type-chip">
                         <span>{type}</span>
-                        <button type="button" onClick={() => removeType(type)}>×</button>
+                        <button type="button" onClick={() => removeType(type)}>x</button>
                       </div>
                     ))}
                   </div>
@@ -1641,7 +1933,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                     {categoryForm.types.map((type) => (
                       <div key={type} className="type-chip">
                         <span>{type}</span>
-                        <button type="button" onClick={() => removeType(type)}>×</button>
+                        <button type="button" onClick={() => removeType(type)}>x</button>
                       </div>
                     ))}
                   </div>
@@ -1754,6 +2046,67 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
           </div>
         )}
 
+        {labelModalOpen && (
+          <div className="modal-overlay" onClick={() => setLabelModalOpen(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-head">
+                <h3>Manage Labels</h3>
+                <button className="ghost-btn" onClick={() => setLabelModalOpen(false)}>Close</button>
+              </div>
+              <form className="form-card" onSubmit={saveLabels}>
+                <label className="field-label">Select Category</label>
+                <select
+                  value={labelCategoryId}
+                  onChange={(e) => setLabelCategoryId(e.target.value)}
+                  required
+                >
+                  <option value="">Select Category</option>
+                  {categories.map((cat) => (
+                    <option key={cat._id} value={cat._id}>{cat.name}</option>
+                  ))}
+                </select>
+                <label className="field-label">Select Type</label>
+                <select
+                  value={labelType}
+                  onChange={(e) => setLabelType(e.target.value)}
+                  required
+                >
+                  <option value="">Select Type</option>
+                  {labelTypes.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+                <div className="type-row">
+                  <input
+                    type="text"
+                    placeholder="Add Label"
+                    value={labelInput}
+                    onChange={(e) => setLabelInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addLabel();
+                      }
+                    }}
+                  />
+                  <button className="ghost-btn" type="button" onClick={addLabel}>+</button>
+                </div>
+                {labelList.length > 0 && (
+                  <div className="type-list">
+                    {labelList.map((label) => (
+                      <div key={label} className="type-chip">
+                        <span>{label}</span>
+                        <button type="button" onClick={() => removeLabel(label)}>x</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button className="primary-btn" type="submit">Save Labels</button>
+              </form>
+            </div>
+          </div>
+        )}
+
         {approveOpen && (
           <div className="modal-overlay" onClick={() => setApproveOpen(false)}>
             <div className="modal-card" onClick={(e) => e.stopPropagation()}>
@@ -1843,8 +2196,8 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
               {notesPageItems.map((item) => (
                 <div key={item._id} className="card">
                   <h4>{item.title}</h4>
-                  <p>{item.category}</p>
-                  <p className="muted">{item.notificationDate}</p>
+                  <p>{item.department || item.category}</p>
+                  <p className="muted">{item.dateOfIssue || item.notificationDate}</p>
                   <div className="action-row">
                     <button className="ghost-btn" onClick={() => startEditNotification(item)}>Edit</button>
                     <button className="ghost-btn" onClick={() => deleteNotification(item._id)}>Delete</button>
@@ -1872,23 +2225,51 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
               >
                 <input
                   type="text"
+                  placeholder="Serial No"
+                  value={noteForm.serialNo}
+                  onChange={(e) => setNoteForm({ ...noteForm, serialNo: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Subject"
+                  value={noteForm.subject}
+                  onChange={(e) => setNoteForm({ ...noteForm, subject: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Department"
+                  value={noteForm.department}
+                  onChange={(e) => setNoteForm({ ...noteForm, department: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
                   placeholder="Title"
                   value={noteForm.title}
                   onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })}
                   required
                 />
-                <input
-                  type="text"
-                  placeholder="Category"
-                  value={noteForm.category}
-                  onChange={(e) => setNoteForm({ ...noteForm, category: e.target.value })}
-                  required
-                />
                 <textarea
                   rows="3"
-                  placeholder="Description"
-                  value={noteForm.description}
-                  onChange={(e) => setNoteForm({ ...noteForm, description: e.target.value })}
+                  placeholder="Summary"
+                  value={noteForm.summary}
+                  onChange={(e) => setNoteForm({ ...noteForm, summary: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Ref Number"
+                  value={noteForm.refNumber}
+                  onChange={(e) => setNoteForm({ ...noteForm, refNumber: e.target.value })}
+                  required
+                />
+                <label className="field-label">Date of Issue</label>
+                <input
+                  type="date"
+                  value={noteForm.dateOfIssue}
+                  onChange={(e) => setNoteForm({ ...noteForm, dateOfIssue: e.target.value })}
                   required
                 />
                 <input
@@ -1904,12 +2285,6 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   type="file"
                   accept="application/pdf"
                   onChange={(e) => handlePdfUpload(e.target.files[0])}
-                />
-                <input
-                  type="date"
-                  value={noteForm.notificationDate}
-                  onChange={(e) => setNoteForm({ ...noteForm, notificationDate: e.target.value })}
-                  required
                 />
                 <button className="primary-btn" type="submit">Add Notification</button>
               </form>
@@ -1927,23 +2302,51 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
               <form className="form-card" onSubmit={saveEditNotification}>
                 <input
                   type="text"
+                  placeholder="Serial No"
+                  value={editNoteForm.serialNo}
+                  onChange={(e) => setEditNoteForm({ ...editNoteForm, serialNo: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Subject"
+                  value={editNoteForm.subject}
+                  onChange={(e) => setEditNoteForm({ ...editNoteForm, subject: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Department"
+                  value={editNoteForm.department}
+                  onChange={(e) => setEditNoteForm({ ...editNoteForm, department: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
                   placeholder="Title"
                   value={editNoteForm.title}
                   onChange={(e) => setEditNoteForm({ ...editNoteForm, title: e.target.value })}
                   required
                 />
-                <input
-                  type="text"
-                  placeholder="Category"
-                  value={editNoteForm.category}
-                  onChange={(e) => setEditNoteForm({ ...editNoteForm, category: e.target.value })}
-                  required
-                />
                 <textarea
                   rows="3"
-                  placeholder="Description"
-                  value={editNoteForm.description}
-                  onChange={(e) => setEditNoteForm({ ...editNoteForm, description: e.target.value })}
+                  placeholder="Summary"
+                  value={editNoteForm.summary}
+                  onChange={(e) => setEditNoteForm({ ...editNoteForm, summary: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Ref Number"
+                  value={editNoteForm.refNumber}
+                  onChange={(e) => setEditNoteForm({ ...editNoteForm, refNumber: e.target.value })}
+                  required
+                />
+                <label className="field-label">Date of Issue</label>
+                <input
+                  type="date"
+                  value={editNoteForm.dateOfIssue}
+                  onChange={(e) => setEditNoteForm({ ...editNoteForm, dateOfIssue: e.target.value })}
                   required
                 />
                 <input
@@ -1956,12 +2359,6 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   type="file"
                   accept="application/pdf"
                   onChange={(e) => handleEditNoteFile(e.target.files[0])}
-                />
-                <input
-                  type="date"
-                  value={editNoteForm.notificationDate}
-                  onChange={(e) => setEditNoteForm({ ...editNoteForm, notificationDate: e.target.value })}
-                  required
                 />
                 <button className="primary-btn" type="submit">Save Changes</button>
               </form>
