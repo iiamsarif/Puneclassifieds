@@ -50,6 +50,52 @@ const parseTypes = (value) => {
   }
 };
 
+const parseLabelsMap = (value) => {
+  if (!value) return {};
+  if (typeof value === "object" && !Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const defaultLocations = [
+  "Agarkar Nagar",
+  "Camp",
+  "Bajirao Road",
+  "Nana Peth",
+  "Khadki",
+  "Deccan Gymkhana",
+  "Shivajinagar",
+  "Ganeshkhind",
+  "Aundh",
+  "Pimpri Colony",
+  "Kalewadi",
+  "Chinchwad East",
+  "Bhosari",
+  "Sangvi",
+  "Kothrud",
+  "Bhusari Colony",
+  "Akurdi",
+  "Baner",
+  "PCNT",
+  "Yamunanagar",
+  "Hadapsar",
+  "Bibvewadi",
+  "Market Yard",
+  "Wanowarie",
+  "Vadgaon Budruk",
+  "Dhankawadi",
+  "Ambegaon BK",
+  "Wakad",
+  "Anandnagar",
+  "Dehu Road",
+  "Khadakwasla",
+  "Chakan"
+];
+
 const client = new MongoClient(uri);
 const uploadDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -119,6 +165,21 @@ const getDb = async () => {
     isConnected = true;
   }
   return client.db(dbName);
+};
+
+const ensureLocations = async (db) => {
+  if (!defaultLocations.length) return;
+  const existing = await db
+    .collection("locations")
+    .find({ name: { $in: defaultLocations } })
+    .toArray();
+  const existingNames = new Set(existing.map((item) => item.name));
+  const payload = defaultLocations
+    .filter((name) => !existingNames.has(name))
+    .map((name) => ({ name, createdAt: new Date() }));
+  if (payload.length) {
+    await db.collection("locations").insertMany(payload);
+  }
 };
 
 const authMiddleware = (req, res, next) => {
@@ -302,12 +363,17 @@ app.post("/api/notifications", adminMiddleware, maybePdfSingle("pdf"), async (re
   const db = await getDb();
   const pdfUrl = fileUrl(req, req.file) || (req.body.pdfFile || "");
   const payload = {
+    serialNo: req.body.serialNo || "",
+    subject: req.body.subject || "",
+    department: req.body.department || "",
     title: req.body.title,
-    description: req.body.description,
-    category: req.body.category,
+    summary: req.body.summary || req.body.description || "",
+    refNumber: req.body.refNumber || "",
+    dateOfIssue: req.body.dateOfIssue || req.body.notificationDate || "",
+    category: req.body.department || req.body.category || "",
     pdfFile: pdfUrl || "",
     pdfData: pdfUrl ? "" : (req.body.pdfData || ""),
-    notificationDate: req.body.notificationDate,
+    notificationDate: req.body.notificationDate || req.body.dateOfIssue || "",
     createdAt: new Date()
   };
   const result = await db.collection("notifications").insertOne(payload);
@@ -324,12 +390,17 @@ app.put("/api/notifications/:id", adminMiddleware, maybePdfSingle("pdf"), async 
   const current = existing[0] || {};
   const pdfUrl = fileUrl(req, req.file) || req.body.pdfFile || current.pdfFile || "";
   const payload = {
+    serialNo: req.body.serialNo || current.serialNo || "",
+    subject: req.body.subject || current.subject || "",
+    department: req.body.department || current.department || "",
     title: req.body.title || current.title,
-    description: req.body.description || current.description,
-    category: req.body.category || current.category,
+    summary: req.body.summary || req.body.description || current.summary || current.description || "",
+    refNumber: req.body.refNumber || current.refNumber || "",
+    dateOfIssue: req.body.dateOfIssue || req.body.notificationDate || current.dateOfIssue || current.notificationDate || "",
+    category: req.body.department || req.body.category || current.category || "",
     pdfFile: pdfUrl,
     pdfData: pdfUrl ? "" : (req.body.pdfData || current.pdfData || ""),
-    notificationDate: req.body.notificationDate || current.notificationDate,
+    notificationDate: req.body.notificationDate || req.body.dateOfIssue || current.notificationDate,
     updatedAt: new Date()
   };
   await db.collection("notifications").updateOne(
@@ -354,12 +425,14 @@ app.post("/api/categories", adminMiddleware, maybeImageSingle("icon"), async (re
   const db = await getDb();
   const iconUrl = (await saveWebpImage(req, req.file)) || (req.body.iconUrl || "");
   const types = parseTypes(req.body.types);
+  const labelsByType = parseLabelsMap(req.body.labelsByType);
   const payload = {
     name: req.body.name,
     description: req.body.description || "",
     iconUrl,
     iconData: iconUrl ? "" : (req.body.iconData || ""),
     types,
+    labelsByType,
     createdAt: new Date()
   };
   const result = await db.collection("categories").insertOne(payload);
@@ -378,6 +451,9 @@ app.put("/api/categories/:id", adminMiddleware, maybeImageSingle("icon"), async 
   const current = existing[0] || {};
   const iconUrl = (await saveWebpImage(req, req.file)) || req.body.iconUrl || current.iconUrl || "";
   const types = parseTypes(req.body.types);
+  const labelsByType = Object.keys(parseLabelsMap(req.body.labelsByType)).length
+    ? parseLabelsMap(req.body.labelsByType)
+    : (current.labelsByType || {});
   await db.collection("categories").updateOne(
     { _id: new ObjectId(req.params.id) },
     {
@@ -387,6 +463,7 @@ app.put("/api/categories/:id", adminMiddleware, maybeImageSingle("icon"), async 
         iconUrl,
         iconData: iconUrl ? "" : (req.body.iconData || current.iconData || ""),
         types,
+        labelsByType,
         updatedAt: new Date()
       }
     }
@@ -396,7 +473,7 @@ app.put("/api/categories/:id", adminMiddleware, maybeImageSingle("icon"), async 
 
 app.get("/api/posts", async (req, res) => {
   const db = await getDb();
-  const { status, category, search, type, paid } = req.query;
+  const { status, category, search, type, paid, label } = req.query;
   const { location } = req.query;
   const page = parseInt(req.query.page || "1", 10);
   const limit = parseInt(req.query.limit || "6", 10);
@@ -417,6 +494,9 @@ app.get("/api/posts", async (req, res) => {
   }
   if (type) {
     and.push({ type: { $regex: `^${escapeRegex(type)}$`, $options: "i" } });
+  }
+  if (label) {
+    and.push({ label: { $regex: `^${escapeRegex(label)}$`, $options: "i" } });
   }
   if (paid === "true") {
     and.push({ paid: true });
@@ -452,15 +532,44 @@ app.get("/api/posts/:id", async (req, res) => {
 
 app.get("/api/locations", async (req, res) => {
   const db = await getDb();
-  const items = await db.collection("posts").find({ status: "approved" }).toArray();
-  const locations = Array.from(
-    new Set(
-      items
-        .map((item) => (item.location || "").trim())
-        .filter((value) => value)
-    )
+  await ensureLocations(db);
+  const items = await db.collection("locations").find({}).sort({ name: 1 }).toArray();
+  return res.json(items.map((item) => item.name));
+});
+
+app.get("/api/admin/locations", adminMiddleware, async (req, res) => {
+  const db = await getDb();
+  await ensureLocations(db);
+  const items = await db.collection("locations").find({}).sort({ name: 1 }).toArray();
+  return res.json(items);
+});
+
+app.post("/api/admin/locations", adminMiddleware, async (req, res) => {
+  const name = (req.body.name || "").trim();
+  if (!name) return res.status(400).json({ message: "Location name required." });
+  const db = await getDb();
+  const existing = await db.collection("locations").find({ name }).toArray();
+  if (existing.length) return res.status(409).json({ message: "Location already exists." });
+  const payload = { name, createdAt: new Date() };
+  const result = await db.collection("locations").insertOne(payload);
+  return res.json({ message: "Location added", item: { ...payload, _id: result.insertedId } });
+});
+
+app.put("/api/admin/locations/:id", adminMiddleware, async (req, res) => {
+  const name = (req.body.name || "").trim();
+  if (!name) return res.status(400).json({ message: "Location name required." });
+  const db = await getDb();
+  await db.collection("locations").updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { name, updatedAt: new Date() } }
   );
-  return res.json(locations);
+  return res.json({ message: "Location updated" });
+});
+
+app.delete("/api/admin/locations/:id", adminMiddleware, async (req, res) => {
+  const db = await getDb();
+  await db.collection("locations").deleteOne({ _id: new ObjectId(req.params.id) });
+  return res.json({ message: "Location deleted" });
 });
 
 app.get("/api/admin/posts/:id/details", adminMiddleware, async (req, res) => {
@@ -534,6 +643,7 @@ app.post("/api/posts", authMiddleware, maybeImageArray("images", 5), async (req,
     title: req.body.title,
     category: req.body.category,
     type: req.body.type || "",
+    label: req.body.label || "",
     location: req.body.location || "",
     description,
     contactName: req.body.contactName,
@@ -607,6 +717,7 @@ app.put("/api/posts/:id", authMiddleware, maybeImageArray("images", 5), async (r
     ...req.body,
     paid,
     expiresAt,
+    label: req.body.label || item[0].label || "",
     imageUrls,
     imageUrl: imageUrls[0] || "",
     imageData: ""
@@ -645,6 +756,7 @@ app.put("/api/admin/posts/:id", adminMiddleware, maybeImageArray("images", 5), a
     ...req.body,
     paid,
     expiresAt,
+    label: req.body.label || current.label || "",
     imageUrls,
     imageUrl: imageUrls[0] || current.imageUrl || "",
     imageData: ""
