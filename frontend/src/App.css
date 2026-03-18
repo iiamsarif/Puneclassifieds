@@ -3346,7 +3346,7 @@ small { font-size: 13px; }
     color: #ffffff !important;
   }
   .navbar:not(.scrolled) .nav-links.open .nav-dropdown {
-    background: rgba(12, 14, 22, 0.92) !important;
+    background: rgba(12, 14, 22, 0) !important;
     border-color: rgba(255, 255, 255, 0.18) !important;
   }
   .navbar:not(.scrolled) .nav-links.open .nav-dropdown button {
