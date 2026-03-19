@@ -4,6 +4,23 @@ import { useParams } from "react-router-dom";
 const NotificationsDetail = ({ apiBase }) => {
   const { id } = useParams();
   const [item, setItem] = useState(null);
+  const handleShare = async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: item?.title || "Notification", url });
+        return;
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        alert("Link copied to clipboard.");
+        return;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    alert("Unable to share on this device.");
+  };
 
   useEffect(() => {
     fetch(`${apiBase}/api/notifications/${id}`)
@@ -29,6 +46,12 @@ const NotificationsDetail = ({ apiBase }) => {
       <section className="news-detail">
         <div className="news-detail-body">
           <span className="badge">{item.department || item.category}</span>
+          <div className="detail-actions">
+            <button type="button" className="share-btn" onClick={handleShare} title="Share">
+              <span aria-hidden="true">⤴</span>
+              Share
+            </button>
+          </div>
           <h1>{item.title}</h1>
           <p className="muted">Serial No: {item.serialNo || "N/A"}</p>
           <p className="muted">Subject: {item.subject || "N/A"}</p>

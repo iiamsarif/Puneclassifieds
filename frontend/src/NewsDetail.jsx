@@ -6,6 +6,23 @@ const fallbackImage = "https://images.unsplash.com/photo-1469474968028-56623f02e
 const NewsDetail = ({ apiBase }) => {
   const { id } = useParams();
   const [news, setNews] = useState(null);
+  const handleShare = async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: news?.title || "News", url });
+        return;
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        alert("Link copied to clipboard.");
+        return;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    alert("Unable to share on this device.");
+  };
 
   useEffect(() => {
     fetch(`${apiBase}/api/news/${id}`)
@@ -32,6 +49,12 @@ const NewsDetail = ({ apiBase }) => {
         <img src={news.imageData || news.image || fallbackImage} alt={news.title} />
         <div className="news-detail-body">
           <span className="badge">{news.category}</span>
+          <div className="detail-actions">
+            <button type="button" className="share-btn" onClick={handleShare} title="Share">
+              <span aria-hidden="true">⤴</span>
+              Share
+            </button>
+          </div>
           <h1>{news.title}</h1>
           <p className="muted">{news.date}</p>
           <p className="news-text">{news.description}</p>

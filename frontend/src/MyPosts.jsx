@@ -27,6 +27,7 @@ const MyPosts = ({ apiBase }) => {
     adoptionConditions: "",
     contactDetails: "",
     location: "",
+    pinCode: "",
     description: "",
     contactName: "",
     phone: "",
@@ -97,6 +98,14 @@ const MyPosts = ({ apiBase }) => {
       .catch(console.error);
   }, [apiBase]);
 
+  const locationOptions = Array.isArray(locations) ? locations : [];
+  const handleLocationInput = (value) => {
+    const match = locationOptions.find(
+      (loc) => (loc?.name || "").toLowerCase() === value.toLowerCase()
+    );
+    setForm((prev) => ({ ...prev, location: value, pinCode: match?.pinCode || "" }));
+  };
+
   const handleEditImages = (e) => {
     setImageReady(true);
     const incoming = Array.from(e?.target?.files || []);
@@ -148,6 +157,7 @@ const MyPosts = ({ apiBase }) => {
       adoptionConditions: post.adoptionConditions || "",
       contactDetails: post.contactDetails || "",
       location: post.location || "",
+      pinCode: post.pinCode || "",
       description: post.description,
       contactName: post.contactName,
       phone: post.phone,
@@ -197,6 +207,7 @@ const MyPosts = ({ apiBase }) => {
       formData.append("adoptionConditions", form.adoptionConditions || "");
       formData.append("contactDetails", form.contactDetails || "");
       formData.append("location", form.location || "");
+      formData.append("pinCode", form.pinCode || "");
       formData.append("description", form.description);
       formData.append("contactName", form.contactName);
       formData.append("phone", form.phone);
@@ -367,16 +378,29 @@ const MyPosts = ({ apiBase }) => {
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 required
               />
-              <select
-                value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
-                required
-              >
-                <option value="">Select Location</option>
-                {locations.map((loc) => (
-                  <option key={loc} value={loc}>{loc}</option>
-                ))}
-              </select>
+              <div className="location-field">
+                <input
+                  type="text"
+                  list="myposts-location-options"
+                  placeholder="Select Location"
+                  value={form.location}
+                  onChange={(e) => handleLocationInput(e.target.value)}
+                  required
+                />
+                <datalist id="myposts-location-options">
+                  {locationOptions.map((loc) => (
+                    <option key={loc._id || loc.name} value={loc.name}>
+                      {loc.name}
+                    </option>
+                  ))}
+                </datalist>
+                <input
+                  type="text"
+                  placeholder="Pincode"
+                  value={form.pinCode}
+                  readOnly
+                />
+              </div>
               {form.category.toLowerCase() === "pets" && (
                 <>
                   <input

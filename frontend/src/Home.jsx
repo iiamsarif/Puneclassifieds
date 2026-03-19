@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 
 const fallbackHero = "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80";
@@ -18,6 +18,24 @@ const Home = ({ apiBase }) => {
       return "";
     }
   });
+  const [heroVideo, setHeroVideo] = useState(() => {
+    try {
+      return localStorage.getItem("heroVideoCache") || "";
+    } catch {
+      return "";
+    }
+  });
+  const [heroMediaMode, setHeroMediaMode] = useState(() => {
+    try {
+      return localStorage.getItem("heroMediaModeCache") || "image";
+    } catch {
+      return "image";
+    }
+  });
+  const [popupVideo, setPopupVideo] = useState("");
+  const [popupLink, setPopupLink] = useState("");
+  const [popupEnabled, setPopupEnabled] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
   const [heroBg, setHeroBg] = useState(() => {
     try {
       return localStorage.getItem("heroBgCache") || "";
@@ -31,7 +49,13 @@ const Home = ({ apiBase }) => {
   const statsRef = useRef(null);
   const categoriesRef = useRef(null);
   const parallaxRef = useRef(null);
+  const popupShownRef = useRef(false);
   const cleanText = (value) => (value || '').replace(/\\r?\\n/g, ' ').trim();
+  const truncateWords = (value, limit = 12) => {
+    const words = cleanText(value).split(/\s+/).filter(Boolean);
+    if (words.length <= limit) return words.join(" ");
+    return `${words.slice(0, limit).join(" ")}...`;
+  };
   const navigate = useNavigate();
   const location = useLocation();
   const token = localStorage.getItem("token");
@@ -67,7 +91,35 @@ const Home = ({ apiBase }) => {
   ];
   const [paymentInfo, setPaymentInfo] = useState(null);
   const [premiumIndex, setPremiumIndex] = useState(0);
-  const heroHeadline = "Discover verified local news, listings, and opportunities in Pune.";
+  const [petIndex, setPetIndex] = useState(0);
+  const [petCardWidth, setPetCardWidth] = useState(300);
+  const [heroNoticeIndex, setHeroNoticeIndex] = useState(0);
+  const [heroHeading, setHeroHeading] = useState("");
+  const [heroSubheading, setHeroSubheading] = useState("");
+  const petPosts = useMemo(
+    () => posts.filter((item) => String(item.category || "").toLowerCase() === "pets"),
+    [posts]
+  );
+  const formatTimeAgo = (value) => {
+    if (!value) return "Just now";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Just now";
+    const diff = Date.now() - date.getTime();
+    const mins = Math.max(1, Math.floor(diff / 60000));
+    if (mins < 60) return `${mins} mins ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} hours ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} days ago`;
+  };
+  const getPetOffset = (index, total) => {
+    if (!total) return 0;
+    let offset = index - petIndex;
+    const half = Math.floor(total / 2);
+    if (offset > half) offset -= total;
+    if (offset < -half) offset += total;
+    return offset;
+  };
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -87,12 +139,38 @@ const Home = ({ apiBase }) => {
         setPosts(p?.items || []);
         setPremiumPosts(premium?.items || []);
         const nextHeroImage = settings?.heroImage || "";
+        const nextHeroVideo = settings?.heroVideo || "";
+        const nextHeroMediaMode = settings?.heroMediaMode || "image";
+        const nextPopupVideo = settings?.popupVideo || "";
+        const nextPopupLink = settings?.popupLink || "";
+        const nextPopupEnabled = !!settings?.popupEnabled;
         const nextHeroBg = settings?.heroBg || "";
+        setHeroHeading(settings?.heroHeading || "");
+        setHeroSubheading(settings?.heroSubheading || "");
         if (nextHeroImage && nextHeroImage !== heroImage) {
           setHeroImage(nextHeroImage);
           try {
             localStorage.setItem("heroImageCache", nextHeroImage);
           } catch {}
+        }
+        if (nextHeroVideo !== heroVideo) {
+          setHeroVideo(nextHeroVideo);
+          try {
+            localStorage.setItem("heroVideoCache", nextHeroVideo || "");
+          } catch {}
+        }
+        if (nextHeroMediaMode !== heroMediaMode) {
+          setHeroMediaMode(nextHeroMediaMode);
+          try {
+            localStorage.setItem("heroMediaModeCache", nextHeroMediaMode);
+          } catch {}
+        }
+        setPopupVideo(nextPopupVideo);
+        setPopupLink(nextPopupLink);
+        setPopupEnabled(nextPopupEnabled);
+        if (nextPopupEnabled && nextPopupVideo && !popupShownRef.current) {
+          setShowPopup(true);
+          popupShownRef.current = true;
         }
         if (nextHeroBg && nextHeroBg !== heroBg) {
           setHeroBg(nextHeroBg);
@@ -142,6 +220,45 @@ const Home = ({ apiBase }) => {
     }, 5000);
     return () => clearInterval(timer);
   }, [premiumPosts.length]);
+
+  useEffect(() => {
+    if (notifications.length <= 1) return;
+    const timer = setInterval(() => {
+      setHeroNoticeIndex((prev) => (prev + 1) % notifications.length);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [notifications.length]);
+
+  useEffect(() => {
+    if (petPosts.length <= 1) return;
+    const timer = setInterval(() => {
+      setPetIndex((prev) => (prev + 1) % petPosts.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [petPosts.length]);
+
+  useEffect(() => {
+    if (!petPosts.length) {
+      setPetIndex(0);
+      return;
+    }
+    setPetIndex((prev) => (prev >= petPosts.length ? 0 : prev));
+  }, [petPosts.length]);
+
+  useEffect(() => {
+    const updateCardWidth = () => {
+      if (window.innerWidth <= 768) {
+        setPetCardWidth(Math.round(window.innerWidth * 0.78));
+      } else if (window.innerWidth <= 1024) {
+        setPetCardWidth(260);
+      } else {
+        setPetCardWidth(300);
+      }
+    };
+    updateCardWidth();
+    window.addEventListener("resize", updateCardWidth);
+    return () => window.removeEventListener("resize", updateCardWidth);
+  }, []);
 
   useEffect(() => {
     const handleHeroZoom = () => {
@@ -398,6 +515,30 @@ const Home = ({ apiBase }) => {
 
   return (
     <main className="page home-page">
+      {showPopup && popupEnabled && popupVideo && (
+        <div className="popup-modal" onClick={() => setShowPopup(false)}>
+          <div className="popup-card" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="popup-close"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowPopup(false);
+              }}
+              type="button"
+            >
+              ✕
+            </button>
+            <video className="popup-video" src={popupVideo} autoPlay loop muted playsInline controls />
+            {popupLink && (
+              <div className="popup-actions">
+                <a className="popup-readmore" href={popupLink} target="_blank" rel="noreferrer">
+                  Read More
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <section
         className="hero-section"
         style={{
@@ -408,15 +549,17 @@ const Home = ({ apiBase }) => {
           <div className="hero-content">
             <div className="hero-tag section-label">Trusted Community Marketplace</div>
             <h1 className="hero-title hero-fall">
-              {heroHeadline.split(" ").map((word, idx) => (
+              {(heroHeading || "Discover verified local news, listings, and opportunities in Pune.")
+                .split(" ")
+                .map((word, idx) => (
                 <span className="hero-word" key={`${word}-${idx}`}>
                   {word}&nbsp;
                 </span>
               ))}
             </h1>
             <p className="hero-subtitle">
-              PuneClassifieds is a premium civic portal where citizens explore government updates,
-              post community services, and access curated listings with confidence.
+              {heroSubheading ||
+                "PuneClassifieds is a premium civic portal where citizens explore government updates, post community services, and access curated listings with confidence."}
             </p>
             <div className="hero-actions">
               <NavLink to="/post-service" className="primary-btn">Post a Service</NavLink>
@@ -424,26 +567,59 @@ const Home = ({ apiBase }) => {
             </div>
           </div>
           <div className="hero-visual">
-            {heroImage && (
-              <img
-                className="hero-image"
-                src={heroImage}
-                alt="Community"
-                loading="lazy"
+            {heroMediaMode === "video" && heroVideo ? (
+              <video
+                className="hero-video"
+                src={heroVideo}
+                autoPlay
+                muted
+                loop
+                playsInline
               />
+            ) : (
+              heroImage && (
+                <img
+                  className="hero-image"
+                  src={heroImage}
+                  alt="Community"
+                  loading="lazy"
+                />
+              )
             )}
-            <div className="floating-card card-a">
-              <p>Verified Services</p>
-              <span>1.2k active</span>
-            </div>
-            <div className="floating-card card-b">
-              <p>Community Posts</p>
-              <span>Updated daily</span>
-            </div>
-            <div className="floating-card card-c">
-              <p>Gov Notifications</p>
-              <span>Live updates</span>
-            </div>
+            {notifications.length > 0 && (
+              <div className="hero-breaking">
+              <div className="hero-breaking-badge">
+                <span className="breaking-text">
+                  {notifications[heroNoticeIndex]?.category ||
+                    notifications[heroNoticeIndex]?.department ||
+                    "BREAKING NEWS"}
+                </span>
+              </div>
+              <div className="hero-breaking-window">
+                <div
+                  className="hero-breaking-track"
+                  style={{ transform: `translateX(-${heroNoticeIndex * 100}%)` }}
+                >
+                  {notifications.map((item) => (
+                    <NavLink
+                      key={item._id}
+                      to={`/notifications/${item._id}`}
+                      className="hero-breaking-item"
+                    >
+                      <div className="hero-breaking-headline">
+                        {truncateWords(item.title || "", 12)}
+                      </div>
+                        <div className="hero-breaking-ticker">
+                          <span className="hero-breaking-desc">
+                            {truncateWords(item.summary || item.description || "", 10)}
+                          </span>
+                        </div>
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+              </div>
+            )}
             <div className="hero-glow"></div>
           </div>
         </div>
@@ -740,6 +916,99 @@ const Home = ({ apiBase }) => {
           </div>
         </div>
       </section>
+
+      {petPosts.length > 0 && (
+        <section className="section pets-spotlight-section">
+          <div className="container">
+            <div className="section-head pets-spotlight-head">
+              <div>
+                <div className="section-label">PETS</div>
+                <h2>Latest Pet Adoption Listings</h2>
+                <p>Freshly posted pets ready for loving homes.</p>
+              </div>
+              <div className="pets-spotlight-nav">
+                <button
+                  type="button"
+                  onClick={() => setPetIndex((prev) => (prev - 1 + petPosts.length) % petPosts.length)}
+                >
+                  ←
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPetIndex((prev) => (prev + 1) % petPosts.length)}
+                >
+                  →
+                </button>
+              </div>
+            </div>
+
+            <div
+              className="pets-spotlight-carousel"
+              style={{ "--pet-card-width": `${petCardWidth}px` }}
+            >
+              <div className="pets-spotlight-track">
+                {petPosts.map((item, idx) => {
+                  const offset = getPetOffset(idx, petPosts.length);
+                  const shift = 0.75;
+                  const translateX = offset * shift * petCardWidth;
+                  const absOffset = Math.abs(offset);
+                  const scale = 1 - Math.min(absOffset * 0.08, 0.32);
+                  const opacity = absOffset > 2 ? 0 : 1 - Math.min(absOffset * 0.18, 0.7);
+                  const zIndex = 10 - absOffset;
+                  const pointerEvents = absOffset > 2 ? "none" : "auto";
+                  return (
+                  <NavLink
+                    key={item._id}
+                    to={`/posts/${item._id}`}
+                    className="pets-spotlight-card"
+                    style={{
+                      transform: `translateX(-50%) translateX(${translateX}px) scale(${scale})`,
+                      opacity,
+                      zIndex,
+                      pointerEvents
+                    }}
+                  >
+                    <div className="pets-spotlight-image">
+                      <img
+                        src={
+                          (item.imageUrls && item.imageUrls[0]) ||
+                          item.imageUrl ||
+                          item.imageData ||
+                          fallbackHero
+                        }
+                        alt={item.title}
+                        loading="lazy"
+                      />
+                      <span className="pets-spotlight-posted">Posted: {formatTimeAgo(item.createdAt)}</span>
+                    </div>
+                    <div className="pets-spotlight-body">
+                      <h4>{item.title}</h4>
+                      <div className="pets-spotlight-tags">
+                        {item.type && <span>{item.type}</span>}
+                        {item.gender && <span>{item.gender}</span>}
+                        {item.age && <span>{item.age}</span>}
+                      </div>
+                      {item.location && (
+                        <p className="pets-spotlight-meta">Location: {item.location}</p>
+                      )}
+                      <div className="pets-spotlight-owner">
+                        <span>{item.contactName || "Community Desk"}</span>
+                      </div>
+                    </div>
+                  </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="pets-spotlight-dots">
+              {petPosts.slice(0, 6).map((_, idx) => (
+                <span key={`pet-dot-${idx}`} className={idx === petIndex ? "active" : ""} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="section section-light">
         <div className="container about-layout">

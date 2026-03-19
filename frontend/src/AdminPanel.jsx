@@ -44,7 +44,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [labelType, setLabelType] = useState("");
   const [labelInput, setLabelInput] = useState("");
   const [labelDraft, setLabelDraft] = useState({});
-  const [locationForm, setLocationForm] = useState({ name: "" });
+  const [locationForm, setLocationForm] = useState({ name: "", pinCode: "" });
   const [locationEditOpen, setLocationEditOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState(null);
   const [typeInput, setTypeInput] = useState("");
@@ -79,7 +79,14 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   });
   const [editNoteFile, setEditNoteFile] = useState(null);
   const [settings, setSettings] = useState({
+    heroHeading: "",
+    heroSubheading: "",
     heroImage: "",
+    heroVideo: "",
+    heroMediaMode: "image",
+    popupVideo: "",
+    popupLink: "",
+    popupEnabled: false,
     heroBg: "",
     contactEmail: "",
     banner1: "",
@@ -87,6 +94,8 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     banner3: "",
     banner4: ""
   });
+  const [heroVideoFile, setHeroVideoFile] = useState(null);
+  const [popupVideoFile, setPopupVideoFile] = useState(null);
   const [status, setStatus] = useState("");
   const [active, setActive] = useState("dashboard");
   const [editPost, setEditPost] = useState(null);
@@ -106,6 +115,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     adoptionConditions: "",
     contactDetails: "",
     location: "",
+    pinCode: "",
     description: "",
     contactName: "",
     phone: "",
@@ -283,9 +293,16 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       }
       if (isAll || section === "settings" || section === "dashboard") {
         jobs.push(
-          fetchJson(`${apiBase}/api/settings/web`).then((s) =>
-            setSettings({
-              heroImage: s?.heroImage || "",
+            fetchJson(`${apiBase}/api/settings/web`).then((s) =>
+              setSettings({
+                heroHeading: s?.heroHeading || "",
+                heroSubheading: s?.heroSubheading || "",
+                heroImage: s?.heroImage || "",
+                heroVideo: s?.heroVideo || "",
+                heroMediaMode: s?.heroMediaMode || "image",
+                popupVideo: s?.popupVideo || "",
+              popupLink: s?.popupLink || "",
+              popupEnabled: !!s?.popupEnabled,
               heroBg: s?.heroBg || "",
               contactEmail: s?.contactEmail || "",
               banner1: s?.banner1 || "",
@@ -654,7 +671,8 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const addLocation = async (e) => {
     e.preventDefault();
     const name = locationForm.name.trim();
-    if (!name) return;
+    const pinCode = locationForm.pinCode.trim();
+    if (!name || !pinCode) return;
     await withLoading(async () => {
       const res = await fetch(`${apiBase}/api/admin/locations`, {
         method: "POST",
@@ -662,28 +680,29 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name, pinCode })
       });
       const data = await safeJson(res);
       if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
       if (!res.ok) throw new Error(data.message || "Failed to add location.");
       if (data.item) setLocations((prev) => [data.item, ...prev]);
       setLocationsPage(1);
-      setLocationForm({ name: "" });
+      setLocationForm({ name: "", pinCode: "" });
       void loadData(active);
     }, "Location added");
   };
 
   const startEditLocation = (loc) => {
     setEditingLocation(loc._id);
-    setLocationForm({ name: loc.name || "" });
+    setLocationForm({ name: loc.name || "", pinCode: loc.pinCode || "" });
     setLocationEditOpen(true);
   };
 
   const saveLocation = async (e) => {
     e.preventDefault();
     const name = locationForm.name.trim();
-    if (!name) return;
+    const pinCode = locationForm.pinCode.trim();
+    if (!name || !pinCode) return;
     await withLoading(async () => {
       const res = await fetch(`${apiBase}/api/admin/locations/${editingLocation}`, {
         method: "PUT",
@@ -691,17 +710,17 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name, pinCode })
       });
       const data = await safeJson(res);
       if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
       if (!res.ok) throw new Error(data.message || "Failed to update location.");
       setLocations((prev) =>
-        prev.map((loc) => (loc._id === editingLocation ? { ...loc, name } : loc))
+        prev.map((loc) => (loc._id === editingLocation ? { ...loc, name, pinCode } : loc))
       );
       setLocationEditOpen(false);
       setEditingLocation(null);
-      setLocationForm({ name: "" });
+      setLocationForm({ name: "", pinCode: "" });
       void loadData(active);
     }, "Location updated");
   };
@@ -978,6 +997,46 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     }, "Settings updated");
   };
 
+  const uploadHeroVideo = async () => {
+    if (!heroVideoFile) {
+      pushToast("Select a video to upload.");
+      return;
+    }
+    await withLoading(async () => {
+      const formData = new FormData();
+      formData.append("video", heroVideoFile);
+      const res = await fetch(`${apiBase}/api/settings/hero-video`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.message || "Failed to upload video.");
+      setSettings((prev) => ({ ...prev, heroVideo: data.heroVideo || prev.heroVideo }));
+      setHeroVideoFile(null);
+    }, "Hero video updated");
+  };
+
+  const uploadPopupVideo = async () => {
+    if (!popupVideoFile) {
+      pushToast("Select a popup video to upload.");
+      return;
+    }
+    await withLoading(async () => {
+      const formData = new FormData();
+      formData.append("video", popupVideoFile);
+      const res = await fetch(`${apiBase}/api/settings/popup-video`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.message || "Failed to upload popup video.");
+      setSettings((prev) => ({ ...prev, popupVideo: data.popupVideo || prev.popupVideo }));
+      setPopupVideoFile(null);
+    }, "Popup video updated");
+  };
+
   const handleNewsImage = (file) => {
     if (!file) {
       setNewsImageFile(null);
@@ -1063,6 +1122,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       adoptionConditions: post.adoptionConditions || "",
       contactDetails: post.contactDetails || "",
       location: post.location || "",
+      pinCode: post.pinCode || "",
       description: post.description || "",
       contactName: post.contactName || "",
       phone: post.phone || "",
@@ -1103,6 +1163,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         adoptionConditions: data.post.adoptionConditions || "",
         contactDetails: data.post.contactDetails || "",
         location: data.post.location || "",
+        pinCode: data.post.pinCode || "",
         description: data.post.description,
         contactName: data.post.contactName || "",
         phone: data.post.phone || "",
@@ -1145,6 +1206,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       formData.append("adoptionConditions", editForm.adoptionConditions || "");
       formData.append("contactDetails", editForm.contactDetails || "");
       formData.append("location", editForm.location || "");
+      formData.append("pinCode", editForm.pinCode || "");
       formData.append("description", editForm.description);
       formData.append("contactName", editForm.contactName);
       formData.append("phone", editForm.phone);
@@ -1559,16 +1621,33 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                   required
                 />
-                <select
-                  value={editForm.location}
-                  onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                  required
-                >
-                  <option value="">Select Location</option>
-                  {locations.map((loc) => (
-                    <option key={loc._id || loc.name || loc} value={loc.name || loc}>{loc.name || loc}</option>
-                  ))}
-                </select>
+                <div className="location-field">
+                  <input
+                    type="text"
+                    list="admin-location-options"
+                    placeholder="Select Location"
+                    value={editForm.location}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const match = locations.find(
+                        (loc) => loc.name && loc.name.toLowerCase() === value.toLowerCase()
+                      );
+                      setEditForm({ ...editForm, location: value, pinCode: match?.pinCode || "" });
+                    }}
+                    required
+                  />
+                  <datalist id="admin-location-options">
+                    {locations.map((loc) => (
+                      <option key={loc._id || loc.name} value={loc.name} />
+                    ))}
+                  </datalist>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Pincode"
+                  value={editForm.pinCode}
+                  readOnly
+                />
                 {showEditPetFields && (
                   <>
                     <input
@@ -1774,7 +1853,14 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 type="text"
                 placeholder="Location Name"
                 value={locationForm.name}
-                onChange={(e) => setLocationForm({ name: e.target.value })}
+                onChange={(e) => setLocationForm({ ...locationForm, name: e.target.value })}
+                required
+              />
+              <input
+                type="text"
+                placeholder="Pincode"
+                value={locationForm.pinCode}
+                onChange={(e) => setLocationForm({ ...locationForm, pinCode: e.target.value })}
                 required
               />
               <button className="primary-btn" type="submit">Add Location</button>
@@ -1783,6 +1869,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
               {locationsPageItems.map((loc) => (
                 <div key={loc._id} className="card">
                   <h4>{loc.name}</h4>
+                  {loc.pinCode && <p className="muted">Pincode: {loc.pinCode}</p>}
                   <div className="action-row">
                     <button className="ghost-btn" onClick={() => startEditLocation(loc)}>Edit</button>
                     <button className="ghost-btn" onClick={() => deleteLocation(loc._id)}>Delete</button>
@@ -1806,7 +1893,14 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   type="text"
                   placeholder="Location Name"
                   value={locationForm.name}
-                  onChange={(e) => setLocationForm({ name: e.target.value })}
+                  onChange={(e) => setLocationForm({ ...locationForm, name: e.target.value })}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Pincode"
+                  value={locationForm.pinCode}
+                  onChange={(e) => setLocationForm({ ...locationForm, pinCode: e.target.value })}
                   required
                 />
                 <button className="primary-btn" type="submit">Save Location</button>
@@ -2372,6 +2466,20 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
               <h2>Web Settings</h2>
             </div>
             <form className="form-card" onSubmit={saveSettings}>
+              <label className="field-label">Hero Heading</label>
+              <input
+                type="text"
+                placeholder="Hero Heading"
+                value={settings.heroHeading}
+                onChange={(e) => setSettings({ ...settings, heroHeading: e.target.value })}
+              />
+              <label className="field-label">Hero Subheading</label>
+              <textarea
+                rows="2"
+                placeholder="Hero Subheading"
+                value={settings.heroSubheading}
+                onChange={(e) => setSettings({ ...settings, heroSubheading: e.target.value })}
+              />
               <label className="field-label">Hero Background Image URL</label>
               <input
                 type="text"
@@ -2379,13 +2487,106 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 value={settings.heroBg}
                 onChange={(e) => setSettings({ ...settings, heroBg: e.target.value })}
               />
-              <label className="field-label">Hero Foreground Image URL</label>
+              <label className="field-label">Hero Media Mode</label>
+              <div className="toggle-row">
+                <label className="toggle-option">
+                  <input
+                    type="radio"
+                    name="heroMediaMode"
+                    value="image"
+                    checked={settings.heroMediaMode === "image"}
+                    onChange={() => setSettings({ ...settings, heroMediaMode: "image" })}
+                  />
+                  Photo
+                </label>
+                <label className="toggle-option">
+                  <input
+                    type="radio"
+                    name="heroMediaMode"
+                    value="video"
+                    checked={settings.heroMediaMode === "video"}
+                    onChange={() => setSettings({ ...settings, heroMediaMode: "video" })}
+                  />
+                  Video
+                </label>
+              </div>
+
+              {settings.heroMediaMode === "image" && (
+                <>
+                  <label className="field-label">Hero Foreground Image URL</label>
+                  <input
+                    type="text"
+                    placeholder="Hero Image URL"
+                    value={settings.heroImage}
+                    onChange={(e) => setSettings({ ...settings, heroImage: e.target.value })}
+                  />
+                  {settings.heroImage && (
+                    <div className="media-preview">
+                      <img src={settings.heroImage} alt="Hero Preview" />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {settings.heroMediaMode === "video" && (
+                <>
+                  <label className="field-label">Upload Hero Video (converts to WebM)</label>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => setHeroVideoFile(e.target.files[0])}
+                  />
+                  <button
+                    type="button"
+                    className="primary-btn"
+                    onClick={uploadHeroVideo}
+                  >
+                    Upload Video
+                  </button>
+                  {settings.heroVideo && (
+                    <div className="media-preview">
+                      <video src={settings.heroVideo} controls muted />
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="form-divider"></div>
+              <label className="field-label">Popup Video Enable</label>
+              <label className="toggle-option">
+                <input
+                  type="checkbox"
+                  checked={!!settings.popupEnabled}
+                  onChange={(e) =>
+                    setSettings({ ...settings, popupEnabled: e.target.checked })
+                  }
+                />
+                <span>Show popup video on homepage</span>
+              </label>
+              <label className="field-label">Popup Read More Link</label>
               <input
                 type="text"
-                placeholder="Hero Image URL"
-                value={settings.heroImage}
-                onChange={(e) => setSettings({ ...settings, heroImage: e.target.value })}
+                placeholder="https://..."
+                value={settings.popupLink}
+                onChange={(e) => setSettings({ ...settings, popupLink: e.target.value })}
               />
+              <label className="field-label">Upload Popup Video (converts to WebM)</label>
+              <input
+                type="file"
+                accept="video/*"
+                onChange={(e) => setPopupVideoFile(e.target.files[0])}
+              />
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={uploadPopupVideo}
+              >
+                Upload Popup Video
+              </button>
+              {settings.popupVideo && (
+                <div className="media-preview">
+                  <video src={settings.popupVideo} controls muted />
+                </div>
+              )}
               <label className="field-label">Support / Contact Email</label>
               <input
                 type="email"

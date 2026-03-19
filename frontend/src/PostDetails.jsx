@@ -7,6 +7,23 @@ const PostDetails = ({ apiBase }) => {
   const { id } = useParams();
   const [post, setPost] = useState(null);
   const [activeImage, setActiveImage] = useState("");
+  const handleShare = async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: post?.title || "Post", url });
+        return;
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        alert("Link copied to clipboard.");
+        return;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    alert("Unable to share on this device.");
+  };
 
   useEffect(() => {
     fetch(`${apiBase}/api/posts/${id}`)
@@ -59,6 +76,12 @@ const PostDetails = ({ apiBase }) => {
           <span className="badge">{post.category}</span>
           {post.type && <span className="badge">{post.type}</span>}
           {post.label && <span className="badge">{post.label}</span>}
+          <div className="detail-actions">
+            <button type="button" className="share-btn" onClick={handleShare} title="Share">
+              <span aria-hidden="true">⤴</span>
+              Share
+            </button>
+          </div>
           <h1>{post.title}</h1>
           <p>{post.description}</p>
           {post.location && <p className="muted">Location: {post.location}</p>}

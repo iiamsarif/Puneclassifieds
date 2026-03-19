@@ -21,6 +21,7 @@ const Posts = ({ apiBase }) => {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [banner, setBanner] = useState("");
+  const [pinCode, setPinCode] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -54,6 +55,7 @@ const Posts = ({ apiBase }) => {
     if (type) params.set("type", type);
     if (label) params.set("label", label);
     if (location) params.set("location", location);
+    if (pinCode) params.set("pinCode", pinCode);
     const res = await fetch(`${apiBase}/api/posts?${params.toString()}`);
     const data = await res.json();
     setPosts(data.items || []);
@@ -85,6 +87,18 @@ const Posts = ({ apiBase }) => {
     setPage(1);
   }, [query.toString()]);
 
+  const locationOptions = useMemo(() => {
+    return Array.isArray(locations) ? locations : [];
+  }, [locations]);
+
+  const handleLocationInput = (value) => {
+    setLocation(value);
+    const match = locationOptions.find(
+      (loc) => loc.name && loc.name.toLowerCase() === value.toLowerCase()
+    );
+    setPinCode(match?.pinCode || "");
+  };
+
   const typeOptions = useMemo(() => {
     if (!Array.isArray(categories) || categories.length === 0) return [];
     if (category) {
@@ -106,6 +120,16 @@ const Posts = ({ apiBase }) => {
     const labels = match.labelsByType[type] || [];
     return Array.isArray(labels) ? labels : [];
   }, [categories, category, type]);
+
+  const activeCategory = category || "All";
+  const activeType = type || "All";
+  const activeLabel = label || "All";
+  const categoryChips = Array.isArray(categories) ? categories.map((c) => c.name) : [];
+  const typeChips = useMemo(() => {
+    if (!category) return typeOptions;
+    return typeOptions;
+  }, [category, typeOptions]);
+  const labelChips = labelOptions;
 
   const pageNumbers = useMemo(() => {
     return Array.from({ length: Math.min(pages, 4) }, (_, i) => i + 1);
@@ -129,6 +153,72 @@ const Posts = ({ apiBase }) => {
       )}
 
       <section className="search-section">
+        <div className="filter-panel">
+          <div className="filter-column">
+            <div className="filter-title">All Categories</div>
+            <div className="filter-list">
+              <button
+                className={`filter-chip ${activeCategory === "All" ? "active" : ""}`}
+                onClick={() => { setCategory(""); setType(""); setLabel(""); setPage(1); }}
+              >
+                All
+              </button>
+              {categoryChips.map((cat) => (
+                <button
+                  key={cat}
+                  className={`filter-chip ${activeCategory === cat ? "active" : ""}`}
+                  onClick={() => { setCategory(cat); setType(""); setLabel(""); setPage(1); }}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="filter-column">
+            <div className="filter-title">All Types</div>
+            <div className="filter-list">
+              <button
+                className={`filter-chip ${activeType === "All" ? "active" : ""}`}
+                onClick={() => { setType(""); setLabel(""); setPage(1); }}
+                disabled={!typeChips.length}
+              >
+                All
+              </button>
+              {typeChips.map((t) => (
+                <button
+                  key={t}
+                  className={`filter-chip ${activeType === t ? "active" : ""}`}
+                  onClick={() => { setType(t); setLabel(""); setPage(1); }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="filter-column">
+            <div className="filter-title">All Labels</div>
+            <div className="filter-list">
+              <button
+                className={`filter-chip ${activeLabel === "All" ? "active" : ""}`}
+                onClick={() => { setLabel(""); setPage(1); }}
+                disabled={!labelChips.length}
+              >
+                All
+              </button>
+              {labelChips.map((lbl) => (
+                <button
+                  key={lbl}
+                  className={`filter-chip ${activeLabel === lbl ? "active" : ""}`}
+                  onClick={() => { setLabel(lbl); setPage(1); }}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
         <div className="search-bar">
           <input
             type="text"
@@ -165,15 +255,26 @@ const Posts = ({ apiBase }) => {
               <option key={lbl} value={lbl}>{lbl}</option>
             ))}
           </select>
-          <select
-            value={location}
-            onChange={(e) => { setLocation(e.target.value); setPage(1); }}
-          >
-            <option value="">All Locations</option>
-            {locations.map((loc) => (
-              <option key={loc} value={loc}>{loc}</option>
-            ))}
-          </select>
+          <div className="location-field">
+            <input
+              type="text"
+              list="location-options"
+              placeholder="All Locations"
+              value={location}
+              onChange={(e) => { handleLocationInput(e.target.value); setPage(1); }}
+            />
+            <datalist id="location-options">
+              {locationOptions.map((loc) => (
+                <option key={loc._id || loc.name} value={loc.name} />
+              ))}
+            </datalist>
+          </div>
+          <input
+            type="text"
+            placeholder="Pincode"
+            value={pinCode}
+            readOnly
+          />
           <button
             className="primary-btn"
             onClick={async () => {

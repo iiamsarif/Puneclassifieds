@@ -16,6 +16,7 @@ const PostService = ({ apiBase }) => {
     medicalHistory: "",
     temperament: "",
     location: "",
+    pinCode: "",
     adoptionConditions: "",
     contactDetails: "",
     description: "",
@@ -62,6 +63,14 @@ const PostService = ({ apiBase }) => {
       .then((data) => Array.isArray(data) && setLocations(data))
       .catch(console.error);
   }, [apiBase]);
+
+  const locationOptions = Array.isArray(locations) ? locations : [];
+  const handleLocationInput = (value) => {
+    const match = locationOptions.find(
+      (loc) => loc.name && loc.name.toLowerCase() === value.toLowerCase()
+    );
+    setForm({ ...form, location: value, pinCode: match?.pinCode || "" });
+  };
 
   const handleImages = (e) => {
     const incoming = Array.from(e?.target?.files || []);
@@ -114,6 +123,7 @@ const PostService = ({ apiBase }) => {
       formData.append("medicalHistory", form.medicalHistory || "");
       formData.append("temperament", form.temperament || "");
       formData.append("location", form.location || "");
+      formData.append("pinCode", form.pinCode || "");
       formData.append("adoptionConditions", form.adoptionConditions || "");
       formData.append("contactDetails", form.contactDetails || "");
       formData.append("description", form.description);
@@ -143,6 +153,7 @@ const PostService = ({ apiBase }) => {
         medicalHistory: "",
         temperament: "",
         location: "",
+        pinCode: "",
         adoptionConditions: "",
         contactDetails: "",
         description: "",
@@ -270,16 +281,27 @@ const PostService = ({ apiBase }) => {
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             required
           />
-          <select
-            value={form.location}
-            onChange={(e) => setForm({ ...form, location: e.target.value })}
-            required
-          >
-            <option value="">Select Location</option>
-            {locations.map((loc) => (
-              <option key={loc} value={loc}>{loc}</option>
-            ))}
-          </select>
+          <div className="location-field">
+            <input
+              type="text"
+              list="service-location-options"
+              placeholder="Select Location"
+              value={form.location}
+              onChange={(e) => handleLocationInput(e.target.value)}
+              required
+            />
+            <datalist id="service-location-options">
+              {locationOptions.map((loc) => (
+                <option key={loc._id || loc.name} value={loc.name} />
+              ))}
+            </datalist>
+          </div>
+          <input
+            type="text"
+            placeholder="Pincode"
+            value={form.pinCode}
+            readOnly
+          />
           {showPetFields && (
             <>
               <input

@@ -6,6 +6,7 @@ const PostProperty = ({ apiBase }) => {
     saleType: "Sale",
     price: "",
     location: "",
+    pinCode: "",
     label: "",
     photos: "",
     contactNumber: "",
@@ -21,6 +22,14 @@ const PostProperty = ({ apiBase }) => {
       .then((data) => Array.isArray(data) && setLocations(data))
       .catch(console.error);
   }, [apiBase]);
+
+  const locationOptions = Array.isArray(locations) ? locations : [];
+  const handleLocationInput = (value) => {
+    const match = locationOptions.find(
+      (loc) => loc.name && loc.name.toLowerCase() === value.toLowerCase()
+    );
+    setForm({ ...form, location: value, pinCode: match?.pinCode || "" });
+  };
 
   useEffect(() => {
     fetch(`${apiBase}/api/categories`)
@@ -55,7 +64,7 @@ const PostProperty = ({ apiBase }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Submission failed");
       setStatus("Submitted. Awaiting admin approval.");
-      setForm({ propertyTitle: "", saleType: "Sale", price: "", location: "", label: "", photos: "", contactNumber: "", whatsapp: "" });
+      setForm({ propertyTitle: "", saleType: "Sale", price: "", location: "", pinCode: "", label: "", photos: "", contactNumber: "", whatsapp: "" });
     } catch (err) {
       setStatus(err.message);
     }
@@ -90,16 +99,27 @@ const PostProperty = ({ apiBase }) => {
             onChange={(e) => setForm({ ...form, price: e.target.value })}
             required
           />
-          <select
-            value={form.location}
-            onChange={(e) => setForm({ ...form, location: e.target.value })}
-            required
-          >
-            <option value="">Select Location</option>
-            {locations.map((loc) => (
-              <option key={loc} value={loc}>{loc}</option>
-            ))}
-          </select>
+          <div className="location-field">
+            <input
+              type="text"
+              list="property-location-options"
+              placeholder="Select Location"
+              value={form.location}
+              onChange={(e) => handleLocationInput(e.target.value)}
+              required
+            />
+            <datalist id="property-location-options">
+              {locationOptions.map((loc) => (
+                <option key={loc._id || loc.name} value={loc.name} />
+              ))}
+            </datalist>
+          </div>
+          <input
+            type="text"
+            placeholder="Pincode"
+            value={form.pinCode}
+            readOnly
+          />
           {labels.length > 0 && (
             <select
               value={form.label}
