@@ -8,6 +8,7 @@ const fs = require("fs");
 const crypto = require("crypto");
 const multer = require("multer");
 const sharp = require("sharp");
+const { spawn } = require("child_process");
 const { MongoClient, ObjectId } = require("mongodb");
 
 dotenv.config();
@@ -109,10 +110,17 @@ const storage = multer.diskStorage({
   }
 });
 const pdfUpload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } });
+const videoUpload = multer({ storage, limits: { fileSize: 150 * 1024 * 1024 } });
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 const maybePdfSingle = (field) => (req, res, next) => {
   if (req.is("multipart/form-data")) {
     return pdfUpload.single(field)(req, res, next);
+  }
+  return next();
+};
+const maybeVideoSingle = (field) => (req, res, next) => {
+  if (req.is("multipart/form-data")) {
+    return videoUpload.single(field)(req, res, next);
   }
   return next();
 };
@@ -138,6 +146,38 @@ const saveWebpImage = async (req, file) => {
   await sharp(file.buffer).webp({ quality: 95 }).toFile(outputPath);
   return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
 };
+const convertVideoToWebm = (inputPath) =>
+  new Promise((resolve, reject) => {
+    const outputName = `${Date.now()}-${Math.round(Math.random() * 1e9)}.webm`;
+    const outputPath = path.join(uploadDir, outputName);
+    const args = [
+      "-y",
+      "-i",
+      inputPath,
+      "-c:v",
+      "libvpx-vp9",
+      "-lossless",
+      "1",
+      "-c:a",
+      "libopus",
+      outputPath
+    ];
+    const ffmpeg = spawn("ffmpeg", args);
+    let stderr = "";
+    ffmpeg.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+    ffmpeg.on("error", (err) => {
+      reject(err);
+    });
+    ffmpeg.on("close", (code) => {
+      if (code === 0) {
+        resolve(outputPath);
+      } else {
+        reject(new Error(stderr || "Video conversion failed"));
+      }
+    });
+  });
 const getUploadPath = (url) => {
   if (!url || typeof url !== "string" || !url.includes("/uploads/")) return null;
   try {
@@ -534,7 +574,7 @@ app.get("/api/locations", async (req, res) => {
   const db = await getDb();
   await ensureLocations(db);
   const items = await db.collection("locations").find({}).sort({ name: 1 }).toArray();
-  return res.json(items.map((item) => item.name));
+  return res.json(items);
 });
 
 app.get("/api/admin/locations", adminMiddleware, async (req, res) => {
@@ -546,22 +586,26 @@ app.get("/api/admin/locations", adminMiddleware, async (req, res) => {
 
 app.post("/api/admin/locations", adminMiddleware, async (req, res) => {
   const name = (req.body.name || "").trim();
+  const pinCode = (req.body.pinCode || "").trim();
   if (!name) return res.status(400).json({ message: "Location name required." });
+  if (!pinCode) return res.status(400).json({ message: "Pin code required." });
   const db = await getDb();
   const existing = await db.collection("locations").find({ name }).toArray();
   if (existing.length) return res.status(409).json({ message: "Location already exists." });
-  const payload = { name, createdAt: new Date() };
+  const payload = { name, pinCode, createdAt: new Date() };
   const result = await db.collection("locations").insertOne(payload);
   return res.json({ message: "Location added", item: { ...payload, _id: result.insertedId } });
 });
 
 app.put("/api/admin/locations/:id", adminMiddleware, async (req, res) => {
   const name = (req.body.name || "").trim();
+  const pinCode = (req.body.pinCode || "").trim();
   if (!name) return res.status(400).json({ message: "Location name required." });
+  if (!pinCode) return res.status(400).json({ message: "Pin code required." });
   const db = await getDb();
   await db.collection("locations").updateOne(
     { _id: new ObjectId(req.params.id) },
-    { $set: { name, updatedAt: new Date() } }
+    { $set: { name, pinCode, updatedAt: new Date() } }
   );
   return res.json({ message: "Location updated" });
 });
@@ -645,6 +689,7 @@ app.post("/api/posts", authMiddleware, maybeImageArray("images", 5), async (req,
     type: req.body.type || "",
     label: req.body.label || "",
     location: req.body.location || "",
+    pinCode: req.body.pinCode || "",
     description,
     contactName: req.body.contactName,
     phone: req.body.phone,
@@ -718,6 +763,7 @@ app.put("/api/posts/:id", authMiddleware, maybeImageArray("images", 5), async (r
     paid,
     expiresAt,
     label: req.body.label || item[0].label || "",
+    pinCode: req.body.pinCode || item[0].pinCode || "",
     imageUrls,
     imageUrl: imageUrls[0] || "",
     imageData: ""
@@ -757,6 +803,7 @@ app.put("/api/admin/posts/:id", adminMiddleware, maybeImageArray("images", 5), a
     paid,
     expiresAt,
     label: req.body.label || current.label || "",
+    pinCode: req.body.pinCode || current.pinCode || "",
     imageUrls,
     imageUrl: imageUrls[0] || current.imageUrl || "",
     imageData: ""
@@ -814,7 +861,14 @@ app.get("/api/settings/web", async (req, res) => {
     web = legacy[0] || {};
   }
   return res.json({
+    heroHeading: web.heroHeading || "",
+    heroSubheading: web.heroSubheading || "",
     heroImage: web.heroImage || "",
+    heroVideo: web.heroVideo || "",
+    heroMediaMode: web.heroMediaMode || "image",
+    popupVideo: web.popupVideo || "",
+    popupLink: web.popupLink || "",
+    popupEnabled: web.popupEnabled || false,
     heroBg: web.heroBg || "",
     contactEmail: web.contactEmail || "",
     banner1: web.banner1 || "",
@@ -831,7 +885,14 @@ app.put("/api/settings/web", adminMiddleware, async (req, res) => {
     {
       $set: {
         key: "web",
+        heroHeading: req.body.heroHeading || "",
+        heroSubheading: req.body.heroSubheading || "",
         heroImage: req.body.heroImage || "",
+        heroVideo: req.body.heroVideo || "",
+        heroMediaMode: req.body.heroMediaMode || "image",
+        popupVideo: req.body.popupVideo || "",
+        popupLink: req.body.popupLink || "",
+        popupEnabled: !!req.body.popupEnabled,
         heroBg: req.body.heroBg || "",
         contactEmail: req.body.contactEmail || "",
         banner1: req.body.banner1 || "",
@@ -844,6 +905,89 @@ app.put("/api/settings/web", adminMiddleware, async (req, res) => {
     { upsert: true }
   );
   return res.json({ message: "Settings updated" });
+});
+
+app.post("/api/settings/hero-video", adminMiddleware, maybeVideoSingle("video"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "Video file required" });
+  }
+  const db = await getDb();
+  try {
+    const convertedPath = await convertVideoToWebm(req.file.path);
+    await fs.promises.unlink(req.file.path).catch(() => {});
+    const url = fileUrl(req, { filename: path.basename(convertedPath) });
+    await db.collection("settings").updateOne(
+      { key: "web" },
+      {
+        $set: {
+          key: "web",
+          heroVideo: url,
+          updatedAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+    return res.json({ message: "Hero video updated", heroVideo: url });
+  } catch (err) {
+    // Fallback: if ffmpeg is missing, keep the original upload
+    const fallbackUrl = fileUrl(req, req.file);
+    await db.collection("settings").updateOne(
+      { key: "web" },
+      {
+        $set: {
+          key: "web",
+          heroVideo: fallbackUrl,
+          updatedAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+    return res.json({
+      message: "FFmpeg not available. Using original video upload.",
+      heroVideo: fallbackUrl
+    });
+  }
+});
+
+app.post("/api/settings/popup-video", adminMiddleware, maybeVideoSingle("video"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "Video file required" });
+  }
+  const db = await getDb();
+  try {
+    const convertedPath = await convertVideoToWebm(req.file.path);
+    await fs.promises.unlink(req.file.path).catch(() => {});
+    const url = fileUrl(req, { filename: path.basename(convertedPath) });
+    await db.collection("settings").updateOne(
+      { key: "web" },
+      {
+        $set: {
+          key: "web",
+          popupVideo: url,
+          updatedAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+    return res.json({ message: "Popup video updated", popupVideo: url });
+  } catch (err) {
+    const fallbackUrl = fileUrl(req, req.file);
+    await db.collection("settings").updateOne(
+      { key: "web" },
+      {
+        $set: {
+          key: "web",
+          popupVideo: fallbackUrl,
+          updatedAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+    return res.json({
+      message: "FFmpeg not available. Using original video upload.",
+      popupVideo: fallbackUrl
+    });
+  }
 });
 
 app.get("/api/admin/pending", adminMiddleware, async (req, res) => {
