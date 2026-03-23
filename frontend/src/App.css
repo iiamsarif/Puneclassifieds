@@ -2878,7 +2878,7 @@ small { font-size: 13px; }
 .admin-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 2px;
   font-weight: 600;
 }
 
@@ -2958,8 +2958,24 @@ small { font-size: 13px; }
 
 .admin-nav-icon {
   width: 18px;
-  text-align: center;
-  font-size: 14px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-nav-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.admin-nav-icon img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  border-radius: 0;
+  filter: brightness(0) invert(1);
+  opacity: 0.95;
 }
 
 .admin-content {

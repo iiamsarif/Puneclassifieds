@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend } from "chart.js";
+import dashboardIcon from "./images/admin-icons/dashboard.svg";
+import pendingIcon from "./images/admin-icons/pending.svg";
+import approvedIcon from "./images/admin-icons/approved.svg";
+import usersIcon from "./images/admin-icons/users.svg";
+import categoriesIcon from "./images/admin-icons/categories.svg";
+import locationsIcon from "./images/admin-icons/locations.svg";
+import newsIcon from "./images/admin-icons/news.svg";
+import notificationsIcon from "./images/admin-icons/notifications.svg";
+import settingsIcon from "./images/admin-icons/settings.svg";
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -1447,39 +1456,39 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       <aside className={`admin-sidebar ${sidebarOpen ? "open" : ""}`}>
         <h2>Admin Console</h2>
         <button className={active === "dashboard" ? "active" : ""} onClick={() => { setActive("dashboard"); setSidebarOpen(false); }}>
-          <span className="admin-nav-icon">🏠</span>
+          <span className="admin-nav-icon"><img src={dashboardIcon} alt="" aria-hidden="true" /></span>
           Dashboard
         </button>
         <button className={active === "pending" ? "active" : ""} onClick={() => { setActive("pending"); setSidebarOpen(false); }}>
-          <span className="admin-nav-icon">⏳</span>
+          <span className="admin-nav-icon"><img src={pendingIcon} alt="" aria-hidden="true" /></span>
           Pending Posts
         </button>
         <button className={active === "approved" ? "active" : ""} onClick={() => { setActive("approved"); setSidebarOpen(false); }}>
-          <span className="admin-nav-icon">✅</span>
+          <span className="admin-nav-icon"><img src={approvedIcon} alt="" aria-hidden="true" /></span>
           Approved Posts
         </button>
         <button className={active === "users" ? "active" : ""} onClick={() => { setActive("users"); setSidebarOpen(false); }}>
-          <span className="admin-nav-icon">👥</span>
+          <span className="admin-nav-icon"><img src={usersIcon} alt="" aria-hidden="true" /></span>
           Control Users
         </button>
         <button className={active === "categories" ? "active" : ""} onClick={() => { setActive("categories"); setSidebarOpen(false); }}>
-          <span className="admin-nav-icon">🗂️</span>
+          <span className="admin-nav-icon"><img src={categoriesIcon} alt="" aria-hidden="true" /></span>
           Categories
         </button>
         <button className={active === "locations" ? "active" : ""} onClick={() => { setActive("locations"); setSidebarOpen(false); }}>
-          <span className="admin-nav-icon">📍</span>
+          <span className="admin-nav-icon"><img src={locationsIcon} alt="" aria-hidden="true" /></span>
           Locations
         </button>
         <button className={active === "news" ? "active" : ""} onClick={() => { setActive("news"); setSidebarOpen(false); }}>
-          <span className="admin-nav-icon">📰</span>
+          <span className="admin-nav-icon"><img src={newsIcon} alt="" aria-hidden="true" /></span>
           Upload News
         </button>
         <button className={active === "notifications" ? "active" : ""} onClick={() => { setActive("notifications"); setSidebarOpen(false); }}>
-          <span className="admin-nav-icon">🔔</span>
+          <span className="admin-nav-icon"><img src={notificationsIcon} alt="" aria-hidden="true" /></span>
           Notifications
         </button>
         <button className={active === "settings" ? "active" : ""} onClick={() => { setActive("settings"); setSidebarOpen(false); }}>
-          <span className="admin-nav-icon">⚙️</span>
+          <span className="admin-nav-icon"><img src={settingsIcon} alt="" aria-hidden="true" /></span>
           Web Settings
         </button>
       </aside>
@@ -2812,3 +2821,4 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
 };
 
 export default AdminPanel;
+
