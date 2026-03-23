@@ -870,16 +870,40 @@ app.get("/api/settings/web", async (req, res) => {
     popupLink: web.popupLink || "",
     popupEnabled: web.popupEnabled || false,
     heroBg: web.heroBg || "",
+    heroBg1: web.heroBg1 || web.heroBg || "",
+    heroBg2: web.heroBg2 || "",
+    heroBg3: web.heroBg3 || "",
+    heroBg4: web.heroBg4 || "",
+    heroBgVersion: web.heroBgVersion || 0,
+    marqueeText: web.marqueeText || "",
     contactEmail: web.contactEmail || "",
     banner1: web.banner1 || "",
     banner2: web.banner2 || "",
     banner3: web.banner3 || "",
-    banner4: web.banner4 || ""
+    banner4: web.banner4 || "",
+    homeWideAd: web.homeWideAd || "",
+    sideAd1: web.sideAd1 || "",
+    sideAd2: web.sideAd2 || "",
+    sideAd3: web.sideAd3 || ""
   });
 });
 
 app.put("/api/settings/web", adminMiddleware, async (req, res) => {
   const db = await getDb();
+  const existing = (await db.collection("settings").findOne({ key: "web" })) || {};
+  const nextHeroBg = req.body.heroBg || req.body.heroBg1 || "";
+  const nextHeroBg1 = req.body.heroBg1 || req.body.heroBg || "";
+  const nextHeroBg2 = req.body.heroBg2 || "";
+  const nextHeroBg3 = req.body.heroBg3 || "";
+  const nextHeroBg4 = req.body.heroBg4 || "";
+  const heroBgChanged =
+    (existing.heroBg || "") !== nextHeroBg ||
+    (existing.heroBg1 || "") !== nextHeroBg1 ||
+    (existing.heroBg2 || "") !== nextHeroBg2 ||
+    (existing.heroBg3 || "") !== nextHeroBg3 ||
+    (existing.heroBg4 || "") !== nextHeroBg4;
+  const nextHeroBgVersion = heroBgChanged ? Date.now() : (existing.heroBgVersion || Date.now());
+
   await db.collection("settings").updateOne(
     { key: "web" },
     {
@@ -893,12 +917,22 @@ app.put("/api/settings/web", adminMiddleware, async (req, res) => {
         popupVideo: req.body.popupVideo || "",
         popupLink: req.body.popupLink || "",
         popupEnabled: !!req.body.popupEnabled,
-        heroBg: req.body.heroBg || "",
+        heroBg: nextHeroBg,
+        heroBg1: nextHeroBg1,
+        heroBg2: nextHeroBg2,
+        heroBg3: nextHeroBg3,
+        heroBg4: nextHeroBg4,
+        heroBgVersion: nextHeroBgVersion,
+        marqueeText: req.body.marqueeText || "",
         contactEmail: req.body.contactEmail || "",
         banner1: req.body.banner1 || "",
         banner2: req.body.banner2 || "",
         banner3: req.body.banner3 || "",
         banner4: req.body.banner4 || "",
+        homeWideAd: req.body.homeWideAd || "",
+        sideAd1: req.body.sideAd1 || "",
+        sideAd2: req.body.sideAd2 || "",
+        sideAd3: req.body.sideAd3 || "",
         updatedAt: new Date()
       }
     },
