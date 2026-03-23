@@ -213,6 +213,8 @@ const Navbar = ({ apiBase }) => {
           <div className="header-marquee-track">
             <span>{marqueeText}</span>
             <span>{marqueeText}</span>
+            <span>{marqueeText}</span>
+            <span>{marqueeText}</span>
           </div>
         </div>
       )}
@@ -221,4 +223,3 @@ const Navbar = ({ apiBase }) => {
 };
 
 export default Navbar;
-

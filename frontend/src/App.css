@@ -171,9 +171,13 @@ img {
 .header-marquee-track {
   display: inline-flex;
   align-items: center;
+  width: max-content;
+  min-width: 200%;
   white-space: nowrap;
   will-change: transform;
-  animation: headerMarqueeMove 42s linear infinite;
+  animation: headerMarqueeMove 52s linear infinite;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
   color: #ffffff;
   font-weight: 700;
   text-transform: uppercase;
@@ -183,7 +187,7 @@ img {
 
 .header-marquee-track span {
   display: inline-block;
-  padding-right: 56px;
+  padding-right: 64px;
 }
 
 @keyframes headerMarqueeMove {
