@@ -1047,6 +1047,7 @@ img {
 }
 
 .section-head-block {
+  margin-top: 12px;
   margin-bottom: 40px;
   text-align: left;
 }
