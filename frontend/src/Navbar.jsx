@@ -6,6 +6,7 @@ const Navbar = ({ apiBase }) => {
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [categories, setCategories] = useState([]);
+  const [marqueeText, setMarqueeText] = useState("");
   const [scrolled, setScrolled] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const navigate = useNavigate();
@@ -34,6 +35,14 @@ const Navbar = ({ apiBase }) => {
     fetch(`${apiBase}/api/categories`)
       .then((r) => r.json())
       .then((data) => Array.isArray(data) && setCategories(data))
+      .catch(console.error);
+  }, [apiBase]);
+
+  useEffect(() => {
+    if (!apiBase) return;
+    fetch(`${apiBase}/api/settings/web`)
+      .then((r) => r.json())
+      .then((data) => setMarqueeText(data?.marqueeText || ""))
       .catch(console.error);
   }, [apiBase]);
 
@@ -199,10 +208,17 @@ const Navbar = ({ apiBase }) => {
           </button>
         </div>
       </div>
+      {marqueeText.trim() && (
+        <div className="header-marquee" role="status" aria-live="polite">
+          <div className="header-marquee-track">
+            <span>{marqueeText}</span>
+            <span>{marqueeText}</span>
+          </div>
+        </div>
+      )}
     </header>
   );
 };
 
 export default Navbar;
-
 

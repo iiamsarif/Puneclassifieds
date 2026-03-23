@@ -22,6 +22,8 @@ const Posts = ({ apiBase }) => {
   const [pages, setPages] = useState(1);
   const [banner, setBanner] = useState("");
   const [pinCode, setPinCode] = useState("");
+  const [homeWideAd, setHomeWideAd] = useState("");
+  const [sideAds, setSideAds] = useState({ sideAd1: "", sideAd2: "", sideAd3: "" });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,7 +36,15 @@ const Posts = ({ apiBase }) => {
   useEffect(() => {
     fetch(`${apiBase}/api/settings/web`)
       .then((r) => r.json())
-      .then((settings) => setBanner(settings?.banner3 || ""))
+      .then((settings) => {
+        setBanner(settings?.banner3 || "");
+        setHomeWideAd(settings?.homeWideAd || "");
+        setSideAds({
+          sideAd1: settings?.sideAd1 || "",
+          sideAd2: settings?.sideAd2 || "",
+          sideAd3: settings?.sideAd3 || ""
+        });
+      })
       .catch(console.error);
   }, [apiBase]);
 
@@ -76,7 +86,7 @@ const Posts = ({ apiBase }) => {
 
   useEffect(() => {
     loadPosts(page);
-  }, [page, search, category, type, label, location]);
+  }, [page, search, category, type, label, location, pinCode]);
 
   useEffect(() => {
     const newCategory = query.get("category") || "";
@@ -99,32 +109,51 @@ const Posts = ({ apiBase }) => {
     setPinCode(match?.pinCode || "");
   };
 
+  const activeCategories = useMemo(() => {
+    if (!Array.isArray(categories)) return [];
+    return categories.filter((cat) => {
+      if (!cat) return false;
+      if (cat.isActive === false) return false;
+      if (cat.active === false) return false;
+      const status = String(cat.status || "").toLowerCase();
+      if (status === "inactive" || status === "disabled") return false;
+      return true;
+    });
+  }, [categories]);
+
+  const categorySelectOptions = useMemo(() => {
+    if (!category) return activeCategories;
+    return activeCategories.filter(
+      (cat) => cat.name && cat.name.toLowerCase() === category.toLowerCase()
+    );
+  }, [activeCategories, category]);
+
   const typeOptions = useMemo(() => {
-    if (!Array.isArray(categories) || categories.length === 0) return [];
+    if (!Array.isArray(activeCategories) || activeCategories.length === 0) return [];
     if (category) {
-      const match = categories.find(
+      const match = activeCategories.find(
         (cat) => cat.name && cat.name.toLowerCase() === category.toLowerCase()
       );
       return match && Array.isArray(match.types) ? match.types : [];
     }
-    const allTypes = categories.flatMap((cat) => (Array.isArray(cat.types) ? cat.types : []));
+    const allTypes = activeCategories.flatMap((cat) => (Array.isArray(cat.types) ? cat.types : []));
     return Array.from(new Set(allTypes));
-  }, [categories, category]);
+  }, [activeCategories, category]);
 
   const labelOptions = useMemo(() => {
     if (!category || !type) return [];
-    const match = categories.find(
+    const match = activeCategories.find(
       (cat) => cat.name && cat.name.toLowerCase() === category.toLowerCase()
     );
     if (!match || !match.labelsByType) return [];
     const labels = match.labelsByType[type] || [];
     return Array.isArray(labels) ? labels : [];
-  }, [categories, category, type]);
+  }, [activeCategories, category, type]);
 
   const activeCategory = category || "All";
   const activeType = type || "All";
   const activeLabel = label || "All";
-  const categoryChips = Array.isArray(categories) ? categories.map((c) => c.name) : [];
+  const categoryChips = Array.isArray(activeCategories) ? activeCategories.map((c) => c.name) : [];
   const typeChips = useMemo(() => {
     if (!category) return typeOptions;
     return typeOptions;
@@ -134,6 +163,11 @@ const Posts = ({ apiBase }) => {
   const pageNumbers = useMemo(() => {
     return Array.from({ length: Math.min(pages, 4) }, (_, i) => i + 1);
   }, [pages]);
+
+  const sideAdList = useMemo(
+    () => [sideAds.sideAd1, sideAds.sideAd2, sideAds.sideAd3].filter(Boolean),
+    [sideAds]
+  );
 
   return (
     <main className="page">
@@ -147,6 +181,16 @@ const Posts = ({ apiBase }) => {
           <div className="container">
             <div className="mid-banner">
               <img className="banner-image" src={banner} alt="Community posts banner" loading="lazy" />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {homeWideAd && (
+        <section className="section home-wide-ad-section">
+          <div className="container">
+            <div className="home-wide-ad-card">
+              <img src={homeWideAd} alt="Community posts wide ad" loading="lazy" />
             </div>
           </div>
         </section>
@@ -231,7 +275,7 @@ const Posts = ({ apiBase }) => {
             onChange={(e) => { setCategory(e.target.value); setType(""); setLabel(""); setPage(1); }}
           >
             <option value="">All Categories</option>
-            {categories.map((cat) => (
+            {categorySelectOptions.map((cat) => (
               <option key={cat._id} value={cat.name}>{cat.name}</option>
             ))}
           </select>
@@ -288,32 +332,43 @@ const Posts = ({ apiBase }) => {
         </div>
       </section>
 
-      <section className="grid">
-        {posts.map((post, idx) => (
-          <article
-            key={post._id}
-            className="card media-card post-card"
-            data-no={`NO. ${String(idx + 1 + (page - 1) * 6).padStart(2, "0")}`}
-            onClick={() => navigate(`/posts/${post._id}`)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") navigate(`/posts/${post._id}`);
-            }}
-          >
-            <img src={(post.imageUrls && post.imageUrls[0]) || post.imageUrl || post.imageData || fallbackImage} alt={post.title} loading="lazy" />
-            <div>
-              <span className="badge">{post.category}</span>
-              <h4>{post.title}</h4>
-              <p className="clamp-2">{post.description}</p>
-              {post.location && <p className="muted">Location: {post.location}</p>}
-              <p className="muted">Posted by: {post.userEmail || "Community Member"}</p>
-              <button className="ghost-btn" onClick={() => navigate(`/posts/${post._id}`)}>
-                Reach Out
-              </button>
-            </div>
-          </article>
-        ))}
+      <section className={`container ${sideAdList.length > 0 ? "hero-news-ad-layout" : ""}`}>
+        <div className="grid">
+          {posts.map((post, idx) => (
+            <article
+              key={post._id}
+              className="card media-card post-card"
+              data-no={`NO. ${String(idx + 1 + (page - 1) * 6).padStart(2, "0")}`}
+              onClick={() => navigate(`/posts/${post._id}`)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") navigate(`/posts/${post._id}`);
+              }}
+            >
+              <img src={(post.imageUrls && post.imageUrls[0]) || post.imageUrl || post.imageData || fallbackImage} alt={post.title} loading="lazy" />
+              <div>
+                <span className="badge">{post.category}</span>
+                <h4>{post.title}</h4>
+                <p className="clamp-2">{post.description}</p>
+                {post.location && <p className="muted">Location: {post.location}</p>}
+                <p className="muted">Posted by: {post.userEmail || "Community Member"}</p>
+                <button className="ghost-btn" onClick={() => navigate(`/posts/${post._id}`)}>
+                  Reach Out
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+        {sideAdList.length > 0 && (
+          <aside className="hero-side-ads" aria-label="Community posts side ads">
+            {sideAdList.map((ad, idx) => (
+              <div key={`posts-side-ad-${idx}`} className="hero-side-ad-card">
+                <img src={ad} alt={`Community posts ad ${idx + 1}`} loading="lazy" />
+              </div>
+            ))}
+          </aside>
+        )}
       </section>
 
       <div className="pagination">

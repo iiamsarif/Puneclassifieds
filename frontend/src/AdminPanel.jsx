@@ -88,11 +88,20 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     popupLink: "",
     popupEnabled: false,
     heroBg: "",
+    heroBg1: "",
+    heroBg2: "",
+    heroBg3: "",
+    heroBg4: "",
+    marqueeText: "",
     contactEmail: "",
     banner1: "",
     banner2: "",
     banner3: "",
-    banner4: ""
+    banner4: "",
+    homeWideAd: "",
+    sideAd1: "",
+    sideAd2: "",
+    sideAd3: ""
   });
   const [heroVideoFile, setHeroVideoFile] = useState(null);
   const [popupVideoFile, setPopupVideoFile] = useState(null);
@@ -155,6 +164,13 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [locationsPage, setLocationsPage] = useState(1);
   const [newsPage, setNewsPage] = useState(1);
   const [notesPage, setNotesPage] = useState(1);
+  const [pendingSearch, setPendingSearch] = useState("");
+  const [approvedSearch, setApprovedSearch] = useState("");
+  const [usersSearch, setUsersSearch] = useState("");
+  const [categoriesSearch, setCategoriesSearch] = useState("");
+  const [locationsSearch, setLocationsSearch] = useState("");
+  const [newsSearch, setNewsSearch] = useState("");
+  const [notesSearch, setNotesSearch] = useState("");
   const [userEditOpen, setUserEditOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [userForm, setUserForm] = useState({ name: "", email: "", paid: false, paidUntil: "" });
@@ -301,17 +317,26 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 heroVideo: s?.heroVideo || "",
                 heroMediaMode: s?.heroMediaMode || "image",
                 popupVideo: s?.popupVideo || "",
-              popupLink: s?.popupLink || "",
-              popupEnabled: !!s?.popupEnabled,
-              heroBg: s?.heroBg || "",
-              contactEmail: s?.contactEmail || "",
-              banner1: s?.banner1 || "",
-              banner2: s?.banner2 || "",
-              banner3: s?.banner3 || "",
-              banner4: s?.banner4 || ""
-            })
-          )
-        );
+                popupLink: s?.popupLink || "",
+                popupEnabled: !!s?.popupEnabled,
+                heroBg: s?.heroBg || "",
+                heroBg1: s?.heroBg1 || s?.heroBg || "",
+                heroBg2: s?.heroBg2 || "",
+                heroBg3: s?.heroBg3 || "",
+                heroBg4: s?.heroBg4 || "",
+                marqueeText: s?.marqueeText || "",
+                contactEmail: s?.contactEmail || "",
+                banner1: s?.banner1 || "",
+                banner2: s?.banner2 || "",
+                banner3: s?.banner3 || "",
+                banner4: s?.banner4 || "",
+                homeWideAd: s?.homeWideAd || "",
+                sideAd1: s?.sideAd1 || "",
+                sideAd2: s?.sideAd2 || "",
+                sideAd3: s?.sideAd3 || ""
+              })
+            )
+          );
       }
       if (isAll || section === "dashboard") {
         jobs.push(
@@ -1310,6 +1335,17 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
 
   const showEditPetFields = editForm.category.toLowerCase() === "pets";
 
+  const matchesSearch = (item, query) => {
+    const q = (query || "").trim().toLowerCase();
+    if (!q) return true;
+    const combined = Object.values(item || {})
+      .flatMap((value) => (Array.isArray(value) ? value : [value]))
+      .filter((value) => value !== null && value !== undefined)
+      .map((value) => String(value).toLowerCase())
+      .join(" ");
+    return combined.includes(q);
+  };
+
   const allPostsCount = approved.posts.length + pending.posts.length;
   const allUsersCount = users.length;
   const categoryCounts = categories.map((cat) => ({
@@ -1318,16 +1354,53 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   }));
   const chartSource = trending.length ? trending : categoryCounts;
 
-  const pendingPageItems = useMemo(() => paginate(pending.posts, pendingPage), [pending.posts, pendingPage]);
-  const approvedPageItems = useMemo(() => paginate(approved.posts, approvedPage), [approved.posts, approvedPage]);
-  const usersPageItems = useMemo(() => paginate(users, usersPage), [users, usersPage]);
-  const categoriesPageItems = useMemo(() => paginate(categories, categoriesPage), [categories, categoriesPage]);
-  const locationsPageItems = useMemo(() => paginate(locations, locationsPage), [locations, locationsPage]);
-  const newsPageItems = useMemo(() => paginate(newsList, newsPage), [newsList, newsPage]);
-  const notesPageItems = useMemo(() => paginate(noteList, notesPage), [noteList, notesPage]);
+  const filteredPendingPosts = useMemo(
+    () => pending.posts.filter((item) => matchesSearch(item, pendingSearch)),
+    [pending.posts, pendingSearch]
+  );
+  const filteredApprovedPosts = useMemo(
+    () => approved.posts.filter((item) => matchesSearch(item, approvedSearch)),
+    [approved.posts, approvedSearch]
+  );
+  const filteredUsers = useMemo(
+    () => users.filter((item) => matchesSearch(item, usersSearch)),
+    [users, usersSearch]
+  );
+  const filteredCategories = useMemo(
+    () => categories.filter((item) => matchesSearch(item, categoriesSearch)),
+    [categories, categoriesSearch]
+  );
+  const filteredLocations = useMemo(
+    () => locations.filter((item) => matchesSearch(item, locationsSearch)),
+    [locations, locationsSearch]
+  );
+  const filteredNews = useMemo(
+    () => newsList.filter((item) => matchesSearch(item, newsSearch)),
+    [newsList, newsSearch]
+  );
+  const filteredNotes = useMemo(
+    () => noteList.filter((item) => matchesSearch(item, notesSearch)),
+    [noteList, notesSearch]
+  );
+
+  const pendingPageItems = useMemo(() => paginate(filteredPendingPosts, pendingPage), [filteredPendingPosts, pendingPage]);
+  const approvedPageItems = useMemo(() => paginate(filteredApprovedPosts, approvedPage), [filteredApprovedPosts, approvedPage]);
+  const usersPageItems = useMemo(() => paginate(filteredUsers, usersPage), [filteredUsers, usersPage]);
+  const categoriesPageItems = useMemo(() => paginate(filteredCategories, categoriesPage), [filteredCategories, categoriesPage]);
+  const locationsPageItems = useMemo(() => paginate(filteredLocations, locationsPage), [filteredLocations, locationsPage]);
+  const newsPageItems = useMemo(() => paginate(filteredNews, newsPage), [filteredNews, newsPage]);
+  const notesPageItems = useMemo(() => paginate(filteredNotes, notesPage), [filteredNotes, notesPage]);
   const selectedLabelCategory = categories.find((cat) => cat._id === labelCategoryId);
   const labelTypes = Array.isArray(selectedLabelCategory?.types) ? selectedLabelCategory.types : [];
   const labelList = labelType ? (labelDraft[labelType] || []) : [];
+
+  useEffect(() => setPendingPage(1), [pendingSearch]);
+  useEffect(() => setApprovedPage(1), [approvedSearch]);
+  useEffect(() => setUsersPage(1), [usersSearch]);
+  useEffect(() => setCategoriesPage(1), [categoriesSearch]);
+  useEffect(() => setLocationsPage(1), [locationsSearch]);
+  useEffect(() => setNewsPage(1), [newsSearch]);
+  useEffect(() => setNotesPage(1), [notesSearch]);
 
   useEffect(() => {
     if (!chartRef.current || active !== "dashboard") return;
@@ -1466,9 +1539,16 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
             <div className="section-head">
               <h2>Pending Listings</h2>
             </div>
+            <input
+              type="text"
+              className="admin-search-input"
+              placeholder="Search pending posts..."
+              value={pendingSearch}
+              onChange={(e) => setPendingSearch(e.target.value)}
+            />
             <h3 className="subhead">Community Posts</h3>
             {renderItems(pendingPageItems, "posts", true)}
-            {renderPager(pending.posts, pendingPage, setPendingPage)}
+            {renderPager(filteredPendingPosts, pendingPage, setPendingPage)}
           </section>
         )}
 
@@ -1477,9 +1557,16 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
             <div className="section-head">
               <h2>Approved Listings</h2>
             </div>
+            <input
+              type="text"
+              className="admin-search-input"
+              placeholder="Search approved posts..."
+              value={approvedSearch}
+              onChange={(e) => setApprovedSearch(e.target.value)}
+            />
             <h3 className="subhead">Community Posts</h3>
             {renderItems(approvedPageItems, "posts", false)}
-            {renderPager(approved.posts, approvedPage, setApprovedPage)}
+            {renderPager(filteredApprovedPosts, approvedPage, setApprovedPage)}
           </section>
         )}
 
@@ -1737,6 +1824,13 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
             <div className="section-head">
               <h2>Control Users</h2>
             </div>
+            <input
+              type="text"
+              className="admin-search-input"
+              placeholder="Search users by name or email..."
+              value={usersSearch}
+              onChange={(e) => setUsersSearch(e.target.value)}
+            />
             <div className="grid">
               {usersPageItems.map((user) => (
                 <div key={user._id} className="card">
@@ -1753,7 +1847,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 </div>
               ))}
             </div>
-            {renderPager(users, usersPage, setUsersPage)}
+            {renderPager(filteredUsers, usersPage, setUsersPage)}
           </section>
         )}
 
@@ -1813,6 +1907,13 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 <button className="primary-btn" onClick={() => setCategoryOpen(true)}>Add Category</button>
               </div>
             </div>
+            <input
+              type="text"
+              className="admin-search-input"
+              placeholder="Search categories..."
+              value={categoriesSearch}
+              onChange={(e) => setCategoriesSearch(e.target.value)}
+            />
             <div className="grid">
               {categoriesPageItems.map((cat) => (
                 <div key={cat._id} className="card">
@@ -1839,7 +1940,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 </div>
               ))}
             </div>
-            {renderPager(categories, categoriesPage, setCategoriesPage)}
+            {renderPager(filteredCategories, categoriesPage, setCategoriesPage)}
           </section>
         )}
 
@@ -1865,6 +1966,13 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
               />
               <button className="primary-btn" type="submit">Add Location</button>
             </form>
+            <input
+              type="text"
+              className="admin-search-input"
+              placeholder="Search locations by name or pincode..."
+              value={locationsSearch}
+              onChange={(e) => setLocationsSearch(e.target.value)}
+            />
             <div className="grid">
               {locationsPageItems.map((loc) => (
                 <div key={loc._id} className="card">
@@ -1877,7 +1985,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 </div>
               ))}
             </div>
-            {renderPager(locations, locationsPage, setLocationsPage)}
+            {renderPager(filteredLocations, locationsPage, setLocationsPage)}
           </section>
         )}
 
@@ -2069,6 +2177,13 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
               <h2>News Manager</h2>
               <button className="primary-btn" onClick={() => setNewsOpen(true)}>Add News</button>
             </div>
+            <input
+              type="text"
+              className="admin-search-input"
+              placeholder="Search news by title, category, or description..."
+              value={newsSearch}
+              onChange={(e) => setNewsSearch(e.target.value)}
+            />
             <div className="grid">
               {newsPageItems.map((item) => (
                 <div key={item._id} className="card">
@@ -2081,7 +2196,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 </div>
               ))}
             </div>
-            {renderPager(newsList, newsPage, setNewsPage)}
+            {renderPager(filteredNews, newsPage, setNewsPage)}
           </section>
         )}
 
@@ -2286,6 +2401,13 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
               <h2>Notification Manager</h2>
               <button className="primary-btn" onClick={() => setNotifOpen(true)}>Add Notification</button>
             </div>
+            <input
+              type="text"
+              className="admin-search-input"
+              placeholder="Search notifications by title, department, summary, ref no..."
+              value={notesSearch}
+              onChange={(e) => setNotesSearch(e.target.value)}
+            />
             <div className="grid">
               {notesPageItems.map((item) => (
                 <div key={item._id} className="card">
@@ -2299,7 +2421,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 </div>
               ))}
             </div>
-            {renderPager(noteList, notesPage, setNotesPage)}
+            {renderPager(filteredNotes, notesPage, setNotesPage)}
           </section>
         )}
 
@@ -2480,12 +2602,35 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 value={settings.heroSubheading}
                 onChange={(e) => setSettings({ ...settings, heroSubheading: e.target.value })}
               />
-              <label className="field-label">Hero Background Image URL</label>
+              <label className="field-label">Hero Background Image URL 1</label>
               <input
                 type="text"
-                placeholder="Hero Background Image URL"
-                value={settings.heroBg}
-                onChange={(e) => setSettings({ ...settings, heroBg: e.target.value })}
+                placeholder="Hero Background Image URL 1"
+                value={settings.heroBg1}
+                onChange={(e) =>
+                  setSettings({ ...settings, heroBg1: e.target.value, heroBg: e.target.value })
+                }
+              />
+              <label className="field-label">Hero Background Image URL 2</label>
+              <input
+                type="text"
+                placeholder="Hero Background Image URL 2"
+                value={settings.heroBg2}
+                onChange={(e) => setSettings({ ...settings, heroBg2: e.target.value })}
+              />
+              <label className="field-label">Hero Background Image URL 3</label>
+              <input
+                type="text"
+                placeholder="Hero Background Image URL 3"
+                value={settings.heroBg3}
+                onChange={(e) => setSettings({ ...settings, heroBg3: e.target.value })}
+              />
+              <label className="field-label">Hero Background Image URL 4</label>
+              <input
+                type="text"
+                placeholder="Hero Background Image URL 4"
+                value={settings.heroBg4}
+                onChange={(e) => setSettings({ ...settings, heroBg4: e.target.value })}
               />
               <label className="field-label">Hero Media Mode</label>
               <div className="toggle-row">
@@ -2569,6 +2714,13 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 value={settings.popupLink}
                 onChange={(e) => setSettings({ ...settings, popupLink: e.target.value })}
               />
+              <label className="field-label">Header Marquee Text</label>
+              <textarea
+                rows="2"
+                placeholder="Enter marquee text shown below header"
+                value={settings.marqueeText}
+                onChange={(e) => setSettings({ ...settings, marqueeText: e.target.value })}
+              />
               <label className="field-label">Upload Popup Video (converts to WebM)</label>
               <input
                 type="file"
@@ -2621,6 +2773,34 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 placeholder="Banner 4 Image URL"
                 value={settings.banner4}
                 onChange={(e) => setSettings({ ...settings, banner4: e.target.value })}
+              />
+              <label className="field-label">Home Wide Banner Ad URL (Home: above latest news section)</label>
+              <input
+                type="text"
+                placeholder="Home Wide Banner Ad URL"
+                value={settings.homeWideAd}
+                onChange={(e) => setSettings({ ...settings, homeWideAd: e.target.value })}
+              />
+              <label className="field-label">Banner Ad Side 1 URL (Home: right side square)</label>
+              <input
+                type="text"
+                placeholder="Banner Ad Side 1 URL"
+                value={settings.sideAd1}
+                onChange={(e) => setSettings({ ...settings, sideAd1: e.target.value })}
+              />
+              <label className="field-label">Banner Ad Side 2 URL (Home: right side square)</label>
+              <input
+                type="text"
+                placeholder="Banner Ad Side 2 URL"
+                value={settings.sideAd2}
+                onChange={(e) => setSettings({ ...settings, sideAd2: e.target.value })}
+              />
+              <label className="field-label">Banner Ad Side 3 URL (Home: right side square)</label>
+              <input
+                type="text"
+                placeholder="Banner Ad Side 3 URL"
+                value={settings.sideAd3}
+                onChange={(e) => setSettings({ ...settings, sideAd3: e.target.value })}
               />
               <button className="primary-btn" type="submit">Save Settings</button>
             </form>

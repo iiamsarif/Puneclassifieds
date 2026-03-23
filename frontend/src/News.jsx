@@ -9,6 +9,8 @@ const News = ({ apiBase }) => {
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [banner, setBanner] = useState("");
+  const [homeWideAd, setHomeWideAd] = useState("");
+  const [sideAds, setSideAds] = useState({ sideAd1: "", sideAd2: "", sideAd3: "" });
 
   useEffect(() => {
     Promise.all([
@@ -18,6 +20,12 @@ const News = ({ apiBase }) => {
       .then(([newsData, settings]) => {
         setNews(Array.isArray(newsData) ? newsData : []);
         setBanner(settings?.banner2 || "");
+        setHomeWideAd(settings?.homeWideAd || "");
+        setSideAds({
+          sideAd1: settings?.sideAd1 || "",
+          sideAd2: settings?.sideAd2 || "",
+          sideAd3: settings?.sideAd3 || ""
+        });
       })
       .catch(console.error);
   }, [apiBase]);
@@ -45,6 +53,10 @@ const News = ({ apiBase }) => {
   const pageNumbers = useMemo(() => {
     return Array.from({ length: Math.min(totalPages, 4) }, (_, i) => i + 1);
   }, [totalPages]);
+  const sideAdList = useMemo(
+    () => [sideAds.sideAd1, sideAds.sideAd2, sideAds.sideAd3].filter(Boolean),
+    [sideAds]
+  );
 
   return (
     <main className="page">
@@ -63,6 +75,16 @@ const News = ({ apiBase }) => {
         </section>
       )}
 
+      {homeWideAd && (
+        <section className="section home-wide-ad-section">
+          <div className="container">
+            <div className="home-wide-ad-card">
+              <img src={homeWideAd} alt="News wide ad" loading="lazy" />
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="search-section">
         <div className="search-bar">
           <input
@@ -74,22 +96,33 @@ const News = ({ apiBase }) => {
         </div>
       </section>
 
-      <section className="grid">
-        {pageItems.map((item, idx) => (
-          <NavLink
-            key={item._id}
-            to={`/news/${item._id}`}
-            className="card media-card post-card news-card"
-            data-no={`NO. ${String(idx + 1 + (page - 1) * PAGE_SIZE).padStart(2, "0")}`}
-          >
-            <img src={item.imageData || item.image || fallbackImage} alt={item.title} loading="lazy" />
-            <div>
-              <span className="badge">{item.category}</span>
-              <h4>{item.title}</h4>
-              <p className="muted">{item.date}</p>
-            </div>
-          </NavLink>
-        ))}
+      <section className={`container ${sideAdList.length > 0 ? "hero-news-ad-layout" : ""}`}>
+        <div className="grid">
+          {pageItems.map((item, idx) => (
+            <NavLink
+              key={item._id}
+              to={`/news/${item._id}`}
+              className="card media-card post-card news-card"
+              data-no={`NO. ${String(idx + 1 + (page - 1) * PAGE_SIZE).padStart(2, "0")}`}
+            >
+              <img src={item.imageData || item.image || fallbackImage} alt={item.title} loading="lazy" />
+              <div>
+                <span className="badge">{item.category}</span>
+                <h4>{item.title}</h4>
+                <p className="muted">{item.date}</p>
+              </div>
+            </NavLink>
+          ))}
+        </div>
+        {sideAdList.length > 0 && (
+          <aside className="hero-side-ads" aria-label="News side ads">
+            {sideAdList.map((ad, idx) => (
+              <div key={`news-side-ad-${idx}`} className="hero-side-ad-card">
+                <img src={ad} alt={`News ad ${idx + 1}`} loading="lazy" />
+              </div>
+            ))}
+          </aside>
+        )}
       </section>
 
       {totalPages > 1 && (

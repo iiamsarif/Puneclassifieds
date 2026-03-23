@@ -9,6 +9,7 @@ const Home = ({ apiBase }) => {
   const [notifications, setNotifications] = useState([]);
   const [categories, setCategories] = useState([]);
   const [posts, setPosts] = useState([]);
+  const [latestPetPosts, setLatestPetPosts] = useState([]);
   const [premiumPosts, setPremiumPosts] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [heroImage, setHeroImage] = useState(() => {
@@ -43,6 +44,30 @@ const Home = ({ apiBase }) => {
       return "";
     }
   });
+  const [heroBgList, setHeroBgList] = useState(() => {
+    try {
+      const raw = localStorage.getItem("heroBgListCache");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [heroBgVersion, setHeroBgVersion] = useState(() => {
+    try {
+      return Number(localStorage.getItem("heroBgVersionCache") || "0");
+    } catch {
+      return 0;
+    }
+  });
+  const [heroSlide, setHeroSlide] = useState({
+    current: 0,
+    previous: null,
+    animating: false,
+    direction: "ltr"
+  });
+  const heroCurrentRef = useRef(0);
+  const [sideAds, setSideAds] = useState({ sideAd1: "", sideAd2: "", sideAd3: "" });
+  const [homeWideAd, setHomeWideAd] = useState("");
   const [banners, setBanners] = useState({ banner1: "", banner2: "", banner3: "", banner4: "" });
   const [stats, setStats] = useState({ citizens: 0, listings: 0, updates: 0, satisfaction: 0 });
   const [statsStarted, setStatsStarted] = useState(false);
@@ -51,6 +76,12 @@ const Home = ({ apiBase }) => {
   const parallaxRef = useRef(null);
   const popupShownRef = useRef(false);
   const cleanText = (value) => (value || '').replace(/\\r?\\n/g, ' ').trim();
+  const withCacheVersion = (url, version) => {
+    if (!url) return "";
+    if (!version) return url;
+    const hasQuery = url.includes("?");
+    return `${url}${hasQuery ? "&" : "?"}v=${version}`;
+  };
   const truncateWords = (value, limit = 12) => {
     const words = cleanText(value).split(/\s+/).filter(Boolean);
     if (words.length <= limit) return words.join(" ");
@@ -68,6 +99,7 @@ const Home = ({ apiBase }) => {
     }
   });
   const [showCongrats, setShowCongrats] = useState(false);
+  const [heroNewsIndex, setHeroNewsIndex] = useState(0);
   const [testimonialIndex, setTestimonialIndex] = useState(0);
   const testimonials = [
     {
@@ -96,10 +128,14 @@ const Home = ({ apiBase }) => {
   const [heroNoticeIndex, setHeroNoticeIndex] = useState(0);
   const [heroHeading, setHeroHeading] = useState("");
   const [heroSubheading, setHeroSubheading] = useState("");
-  const petPosts = useMemo(
-    () => posts.filter((item) => String(item.category || "").toLowerCase() === "pets"),
-    [posts]
-  );
+  const petPosts = useMemo(() => {
+    if (Array.isArray(latestPetPosts) && latestPetPosts.length > 0) {
+      return latestPetPosts.slice(0, 10);
+    }
+    return posts
+      .filter((item) => String(item.category || "").toLowerCase() === "pets")
+      .slice(0, 10);
+  }, [posts, latestPetPosts]);
   const formatTimeAgo = (value) => {
     if (!value) return "Just now";
     const date = new Date(value);
@@ -124,12 +160,13 @@ const Home = ({ apiBase }) => {
     let mounted = true;
     const load = async () => {
       try {
-        const [n, g, c, p, premium, settings] = await Promise.all([
+        const [n, g, c, p, premium, petsLatest, settings] = await Promise.all([
           fetch(`${apiBase}/api/news`).then((r) => r.json()),
           fetch(`${apiBase}/api/notifications`).then((r) => r.json()),
           fetch(`${apiBase}/api/categories`).then((r) => r.json()),
           fetch(`${apiBase}/api/posts?status=approved&limit=15`).then((r) => r.json()),
           fetch(`${apiBase}/api/posts?status=approved&paid=true&limit=6`).then((r) => r.json()),
+          fetch(`${apiBase}/api/posts?status=approved&category=Pets&limit=10`).then((r) => r.json()),
           fetch(`${apiBase}/api/settings/web`).then((r) => r.json())
         ]);
         if (!mounted) return;
@@ -138,13 +175,25 @@ const Home = ({ apiBase }) => {
         setCategories(Array.isArray(c) ? c : []);
         setPosts(p?.items || []);
         setPremiumPosts(premium?.items || []);
+        setLatestPetPosts(petsLatest?.items || []);
         const nextHeroImage = settings?.heroImage || "";
         const nextHeroVideo = settings?.heroVideo || "";
         const nextHeroMediaMode = settings?.heroMediaMode || "image";
         const nextPopupVideo = settings?.popupVideo || "";
         const nextPopupLink = settings?.popupLink || "";
         const nextPopupEnabled = !!settings?.popupEnabled;
-        const nextHeroBg = settings?.heroBg || "";
+        const nextHeroBgVersion = Number(settings?.heroBgVersion || 0);
+        const nextHeroBgRaw = settings?.heroBg || "";
+        const nextHeroBg = withCacheVersion(nextHeroBgRaw, nextHeroBgVersion);
+        const nextHeroBgListRaw = [
+          settings?.heroBg1 || "",
+          settings?.heroBg2 || "",
+          settings?.heroBg3 || "",
+          settings?.heroBg4 || ""
+        ]
+          .filter(Boolean)
+          .map((url) => withCacheVersion(String(url).trim(), nextHeroBgVersion));
+        const nextHeroBgList = Array.from(new Set(nextHeroBgListRaw));
         setHeroHeading(settings?.heroHeading || "");
         setHeroSubheading(settings?.heroSubheading || "");
         if (nextHeroImage && nextHeroImage !== heroImage) {
@@ -172,18 +221,43 @@ const Home = ({ apiBase }) => {
           setShowPopup(true);
           popupShownRef.current = true;
         }
-        if (nextHeroBg && nextHeroBg !== heroBg) {
+        setHeroBgVersion(nextHeroBgVersion);
+        try {
+          localStorage.setItem("heroBgVersionCache", String(nextHeroBgVersion || 0));
+        } catch {}
+
+        if (nextHeroBg !== heroBg) {
           setHeroBg(nextHeroBg);
           try {
-            localStorage.setItem("heroBgCache", nextHeroBg);
+            localStorage.setItem("heroBgCache", nextHeroBg || "");
           } catch {}
         }
+        setHeroBgList((prev) => {
+          const same = JSON.stringify(prev) === JSON.stringify(nextHeroBgList);
+          if (same) return prev;
+          setHeroSlide({
+            current: 0,
+            previous: null,
+            animating: false,
+            direction: "ltr"
+          });
+          try {
+            localStorage.setItem("heroBgListCache", JSON.stringify(nextHeroBgList));
+          } catch {}
+          return nextHeroBgList;
+        });
         setBanners({
           banner1: settings?.banner1 || "",
           banner2: settings?.banner2 || "",
           banner3: settings?.banner3 || "",
           banner4: settings?.banner4 || ""
         });
+        setSideAds({
+          sideAd1: settings?.sideAd1 || "",
+          sideAd2: settings?.sideAd2 || "",
+          sideAd3: settings?.sideAd3 || ""
+        });
+        setHomeWideAd(settings?.homeWideAd || "");
       } catch (err) {
         console.error(err);
       }
@@ -198,6 +272,43 @@ const Home = ({ apiBase }) => {
       window.removeEventListener("focus", handleFocus);
     };
   }, [apiBase]);
+
+  useEffect(() => {
+    heroCurrentRef.current = heroSlide.current;
+  }, [heroSlide.current]);
+
+  useEffect(() => {
+    // Warm browser cache for all hero background slides on first load/update.
+    const urls = (heroBgList.length ? heroBgList : [heroBg]).filter(Boolean);
+    const preloaders = urls.map((src) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.loading = "eager";
+      img.src = src;
+      return img;
+    });
+    return () => {
+      preloaders.forEach((img) => {
+        img.src = "";
+      });
+    };
+  }, [heroBgList, heroBg]);
+
+  useEffect(() => {
+    const urls = [heroImage, banners.banner1, banners.banner2, banners.banner3, banners.banner4].filter(Boolean);
+    const preloaders = urls.map((src) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.loading = "eager";
+      img.src = src;
+      return img;
+    });
+    return () => {
+      preloaders.forEach((img) => {
+        img.src = "";
+      });
+    };
+  }, [heroImage, banners]);
 
   useEffect(() => {
     if (!token || !apiBase) return;
@@ -512,6 +623,74 @@ const Home = ({ apiBase }) => {
   const goToCategory = (name) => {
     navigate(`/posts?category=${encodeURIComponent(name)}`);
   };
+  const heroNewsItems = useMemo(() => {
+    if (!Array.isArray(news) || !news.length) return [];
+    const sorted = [...news].sort((a, b) => {
+      const da = new Date(a?.date || a?.createdAt || 0).getTime();
+      const db = new Date(b?.date || b?.createdAt || 0).getTime();
+      return db - da;
+    });
+    return sorted.slice(0, 10);
+  }, [news]);
+  const latestNews = heroNewsItems[heroNewsIndex] || null;
+  const sideAdList = useMemo(
+    () => [sideAds.sideAd1, sideAds.sideAd2, sideAds.sideAd3].filter(Boolean),
+    [sideAds]
+  );
+
+  useEffect(() => {
+    if (!heroNewsItems.length) return;
+    if (heroNewsIndex < heroNewsItems.length) return;
+    setHeroNewsIndex(0);
+  }, [heroNewsItems.length, heroNewsIndex]);
+
+  useEffect(() => {
+    if (heroNewsItems.length <= 1) return;
+    const timer = setInterval(() => {
+      setHeroNewsIndex((prev) => (prev + 1) % heroNewsItems.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [heroNewsItems.length]);
+  const heroSlides = heroBgList.length ? heroBgList : [heroBg].filter(Boolean);
+  const currentHeroBg = heroSlides[heroSlide.current] || "";
+  useEffect(() => {
+    if (!heroSlides.length) return;
+    if (heroSlide.current < heroSlides.length) return;
+    setHeroSlide((prev) => ({
+      ...prev,
+      current: 0,
+      previous: null,
+      animating: false
+    }));
+  }, [heroSlides.length, heroSlide.current]);
+
+  const startHeroSlide = (targetIndex, direction = "ltr") => {
+    if (!heroSlides.length) return;
+    const clamped = ((targetIndex % heroSlides.length) + heroSlides.length) % heroSlides.length;
+    const currentIndex = heroCurrentRef.current;
+    if (clamped === currentIndex) return;
+    setHeroSlide((prev) => ({
+      ...prev,
+      current: clamped,
+      previous: null,
+      animating: false,
+      direction
+    }));
+  };
+
+  useEffect(() => {
+    if (heroSlides.length <= 1) return;
+    const timer = setInterval(() => {
+      setHeroSlide((prev) => ({
+        ...prev,
+        current: (prev.current + 1) % heroSlides.length,
+        previous: null,
+        animating: false,
+        direction: "ltr"
+      }));
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [heroSlides.length]);
 
   return (
     <main className="page home-page">
@@ -542,9 +721,43 @@ const Home = ({ apiBase }) => {
       <section
         className="hero-section"
         style={{
-          "--hero-bg": heroBg ? `url(${heroBg})` : "none"
+          "--hero-bg": "none"
         }}
       >
+        <div className="hero-bg-stack" aria-hidden="true">
+          <div
+            className="hero-bg-layer single"
+            style={{ backgroundImage: currentHeroBg ? `url(${currentHeroBg})` : "none" }}
+          />
+        </div>
+        {heroSlides.length > 1 && (
+          <div className="hero-bg-nav" aria-label="Hero background controls">
+            <button
+              type="button"
+              className="hero-bg-arrow left"
+              onClick={() => {
+                if (heroSlide.animating) return;
+                startHeroSlide(heroSlide.current - 1, "rtl");
+              }}
+              disabled={heroSlide.animating}
+              aria-label="Previous background"
+            >
+              &lt;
+            </button>
+            <button
+              type="button"
+              className="hero-bg-arrow right"
+              onClick={() => {
+                if (heroSlide.animating) return;
+                startHeroSlide(heroSlide.current + 1, "ltr");
+              }}
+              disabled={heroSlide.animating}
+              aria-label="Next background"
+            >
+              &gt;
+            </button>
+          </div>
+        )}
         <div className="container hero-layout">
           <div className="hero-content">
             <div className="hero-tag section-label">Trusted Community Marketplace</div>
@@ -553,7 +766,7 @@ const Home = ({ apiBase }) => {
                 .split(" ")
                 .map((word, idx) => (
                 <span className="hero-word" key={`${word}-${idx}`}>
-                  {word}&nbsp;
+                  {word}{" "}
                 </span>
               ))}
             </h1>
@@ -624,6 +837,73 @@ const Home = ({ apiBase }) => {
           </div>
         </div>
       </section>
+
+      {homeWideAd && (
+        <section className="section home-wide-ad-section">
+          <div className="container">
+            <div className="home-wide-ad-card">
+              <img src={homeWideAd} alt="Home banner ad" loading="lazy" />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {(latestNews || sideAdList.length > 0) && (
+        <section className="section hero-news-ad-section">
+          <div className="container hero-news-ad-layout">
+            {latestNews && (
+              <div className="hero-news-feature-wrap">
+                <NavLink to={`/news/${latestNews._id}`} className="hero-news-feature">
+                  <div className="hero-news-copy">
+                    <div className="section-label">Latest News</div>
+                    <h2>{latestNews.title || "Community Update"}</h2>
+                    <p>{truncateWords(latestNews.description || latestNews.summary || "", 34)}</p>
+                  </div>
+                  {(latestNews.imageData || latestNews.image) && (
+                    <img
+                      src={latestNews.imageData || latestNews.image}
+                      alt={latestNews.title || "Latest news"}
+                      loading="lazy"
+                    />
+                  )}
+                </NavLink>
+                {heroNewsItems.length > 1 && (
+                  <div className="hero-news-nav">
+                    <button
+                      type="button"
+                      className="hero-news-arrow"
+                      onClick={() =>
+                        setHeroNewsIndex((prev) => (prev - 1 + heroNewsItems.length) % heroNewsItems.length)
+                      }
+                      aria-label="Previous news"
+                    >
+                      &lt;
+                    </button>
+                    <button
+                      type="button"
+                      className="hero-news-arrow"
+                      onClick={() => setHeroNewsIndex((prev) => (prev + 1) % heroNewsItems.length)}
+                      aria-label="Next news"
+                    >
+                      &gt;
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {sideAdList.length > 0 && (
+              <aside className="hero-side-ads" aria-label="Home side ads">
+                {sideAdList.map((ad, idx) => (
+                  <div key={`${ad}-${idx}`} className="hero-side-ad-card">
+                    <img src={ad} alt={`Banner ad ${idx + 1}`} loading="lazy" />
+                  </div>
+                ))}
+              </aside>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="section" id="categories" ref={categoriesRef}>
         <div className="container">
