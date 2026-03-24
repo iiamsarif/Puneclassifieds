@@ -3331,7 +3331,7 @@ small { font-size: 13px; }
   50% { opacity: 1; }
 }
 
-@media (max-width: 1216) {
+@media (max-width: 1216px) {
   .navbar-inner {
     padding: 16px 2vw;
   }
@@ -3741,7 +3741,7 @@ small { font-size: 13px; }
   background: rgba(255, 255, 255, 0.12);
 }
 
-@media (max-width: 1216) {
+@media (max-width: 1216px) {
   .navbar.scrolled .nav-link-button {
     color: var(--ink);
   }
@@ -3764,14 +3764,14 @@ small { font-size: 13px; }
   }
 }
 
-@media (max-width: 1216) {
+@media (max-width: 1216px) {
   .nav-links.open .nav-dropdown {
     background: #ffffff !important;
     border-color: var(--line) !important;
   }
 }
 
-@media (max-width: 1216) {
+@media (max-width: 1216px) {
   .navbar.scrolled .nav-links.open .nav-dropdown,
   .navbar.scrolled .nav-links.open .nav-item.open .nav-dropdown {
     background: #ffffff !important;
@@ -4141,7 +4141,7 @@ small { font-size: 13px; }
 }
 
 /* Mobile menu + dropdowns over hero: keep white panel + black text */
-@media (max-width: 1216) {
+@media (max-width: 1216px) {
   .navbar:not(.scrolled) .nav-links.open {
     background: #ffffff !important;
   }
@@ -4187,7 +4187,7 @@ small { font-size: 13px; }
   background-clip: initial !important;
 }
 
-@media (max-width: 1216) {
+@media (max-width: 1216px) {
   .navbar.scrolled .nav-links {
     background: #ffffff !important;
   }
@@ -4208,7 +4208,7 @@ small { font-size: 13px; }
   }
 }
 
-@media (max-width: 1216) {
+@media (max-width: 1216px) {
   .navbar.scrolled .nav-links {
     color: var(--muted);
   }
