@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getWebSettings } from "./webSettingsCache";
 
 const Contact = ({ apiBase }) => {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
@@ -8,8 +9,7 @@ const Contact = ({ apiBase }) => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${apiBase}/api/settings/web`);
-        const data = await res.json();
+        const data = await getWebSettings(apiBase);
         setContactEmail(data.contactEmail || "");
       } catch (err) {
         console.error(err);

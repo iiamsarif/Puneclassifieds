@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { getWebSettings } from "./webSettingsCache";
 
 const fallbackImage = "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1200&q=80";
 const PAGE_SIZE = 10;
@@ -15,16 +16,16 @@ const News = ({ apiBase }) => {
   useEffect(() => {
     Promise.all([
       fetch(`${apiBase}/api/news`).then((r) => r.json()),
-      fetch(`${apiBase}/api/settings/web`).then((r) => r.json())
+      getWebSettings(apiBase)
     ])
       .then(([newsData, settings]) => {
         setNews(Array.isArray(newsData) ? newsData : []);
         setBanner(settings?.banner2 || "");
-        setHomeWideAd(settings?.homeWideAd || "");
+        setHomeWideAd(settings?.newsWideAd || "");
         setSideAds({
-          sideAd1: settings?.sideAd1 || "",
-          sideAd2: settings?.sideAd2 || "",
-          sideAd3: settings?.sideAd3 || ""
+          sideAd1: settings?.newsSideAd1 || "",
+          sideAd2: settings?.newsSideAd2 || "",
+          sideAd3: settings?.newsSideAd3 || ""
         });
       })
       .catch(console.error);

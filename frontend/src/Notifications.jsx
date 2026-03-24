@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { getWebSettings } from "./webSettingsCache";
 
 const PAGE_SIZE = 10;
 
@@ -23,7 +24,7 @@ const Notifications = ({ apiBase }) => {
   useEffect(() => {
     Promise.all([
       fetch(`${apiBase}/api/notifications`).then((r) => r.json()),
-      fetch(`${apiBase}/api/settings/web`).then((r) => r.json())
+      getWebSettings(apiBase)
     ])
       .then(([itemsData, settings]) => {
         setItems(Array.isArray(itemsData) ? itemsData : []);

@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { getWebSettings } from "./webSettingsCache";
 
 const fallbackHero = "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80";
 
@@ -167,7 +168,7 @@ const Home = ({ apiBase }) => {
           fetch(`${apiBase}/api/posts?status=approved&limit=15`).then((r) => r.json()),
           fetch(`${apiBase}/api/posts?status=approved&paid=true&limit=6`).then((r) => r.json()),
           fetch(`${apiBase}/api/posts?status=approved&category=Pets&limit=10`).then((r) => r.json()),
-          fetch(`${apiBase}/api/settings/web`).then((r) => r.json())
+          getWebSettings(apiBase)
         ]);
         if (!mounted) return;
         setNews(Array.isArray(n) ? n : []);
@@ -762,7 +763,7 @@ const Home = ({ apiBase }) => {
           <div className="hero-content">
             <div className="hero-tag section-label">Trusted Community Marketplace</div>
             <h1 className="hero-title hero-fall">
-              {(heroHeading || "Discover verified local news, listings, and opportunities in Pune.")
+              {(heroHeading || "")
                 .split(" ")
                 .map((word, idx) => (
                 <span className="hero-word" key={`${word}-${idx}`}>
@@ -776,7 +777,6 @@ const Home = ({ apiBase }) => {
             </p>
             <div className="hero-actions">
               <NavLink to="/post-service" className="primary-btn">Post a Service</NavLink>
-              <NavLink to="/posts" className="ghost-btn">View Posts</NavLink>
             </div>
           </div>
           <div className="hero-visual">
@@ -1016,13 +1016,13 @@ const Home = ({ apiBase }) => {
               <div className="section-label">SEARCH</div>
               <h2>Global Search</h2>
             </div>
-            <p>Search news, posts, and notifications in one place.</p>
+            <p>Search all posts of any category.</p>
           </div>
           <div className="search-section">
             <div className="search-bar">
               <input
                 type="text"
-                placeholder="Search listings, services, or updates..."
+                placeholder="Search listings, services, or Jobs..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -1571,7 +1571,6 @@ const Home = ({ apiBase }) => {
 };
 
 export default Home;
-
 
 
 

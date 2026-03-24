@@ -1,9 +1,55 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { getWebSettings } from "./webSettingsCache";
 
 const fallbackImage = "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80";
 
 const useQuery = () => new URLSearchParams(useLocation().search);
+
+const pickCategoryAds = (settings, categoryName) => {
+  const key = String(categoryName || "").toLowerCase();
+  const mapping = {
+    jobs: {
+      wide: "jobsWideAd",
+      side1: "jobsSideAd1",
+      side2: "jobsSideAd2",
+      side3: "jobsSideAd3"
+    },
+    property: {
+      wide: "propertyWideAd",
+      side1: "propertySideAd1",
+      side2: "propertySideAd2",
+      side3: "propertySideAd3"
+    },
+    pets: {
+      wide: "petsWideAd",
+      side1: "petsSideAd1",
+      side2: "petsSideAd2",
+      side3: "petsSideAd3"
+    },
+    services: {
+      wide: "servicesWideAd",
+      side1: "servicesSideAd1",
+      side2: "servicesSideAd2",
+      side3: "servicesSideAd3"
+    }
+  };
+  const m = mapping[key];
+  if (!m) {
+    return {
+      wide: "",
+      sideAd1: "",
+      sideAd2: "",
+      sideAd3: ""
+    };
+  }
+  return {
+    wide: settings?.[m.wide] || "",
+    sideAd1: settings?.[m.side1] || "",
+    sideAd2: settings?.[m.side2] || "",
+    sideAd3: settings?.[m.side3] || ""
+  };
+};
 
 const Posts = ({ apiBase }) => {
   const query = useQuery();
@@ -34,19 +80,19 @@ const Posts = ({ apiBase }) => {
   }, [apiBase]);
 
   useEffect(() => {
-    fetch(`${apiBase}/api/settings/web`)
-      .then((r) => r.json())
+    getWebSettings(apiBase)
       .then((settings) => {
         setBanner(settings?.banner3 || "");
-        setHomeWideAd(settings?.homeWideAd || "");
+        const ads = pickCategoryAds(settings, category);
+        setHomeWideAd(ads.wide);
         setSideAds({
-          sideAd1: settings?.sideAd1 || "",
-          sideAd2: settings?.sideAd2 || "",
-          sideAd3: settings?.sideAd3 || ""
+          sideAd1: ads.sideAd1,
+          sideAd2: ads.sideAd2,
+          sideAd3: ads.sideAd3
         });
       })
       .catch(console.error);
-  }, [apiBase]);
+  }, [apiBase, category]);
 
   useEffect(() => {
     fetch(`${apiBase}/api/locations`)
@@ -121,12 +167,24 @@ const Posts = ({ apiBase }) => {
     });
   }, [categories]);
 
-  const categorySelectOptions = useMemo(() => {
-    if (!category) return activeCategories;
-    return activeCategories.filter(
-      (cat) => cat.name && cat.name.toLowerCase() === category.toLowerCase()
-    );
+  useEffect(() => {
+    if (category) return;
+    if (!activeCategories.length) return;
+    setCategory(activeCategories[0].name);
   }, [activeCategories, category]);
+
+  const selectedCategoryObj = useMemo(() => {
+    if (!activeCategories.length) return null;
+    const match = activeCategories.find(
+      (cat) => cat.name && cat.name.toLowerCase() === String(category || "").toLowerCase()
+    );
+    return match || activeCategories[0];
+  }, [activeCategories, category]);
+
+  const categorySelectOptions = useMemo(
+    () => (selectedCategoryObj ? [selectedCategoryObj] : []),
+    [selectedCategoryObj]
+  );
 
   const typeOptions = useMemo(() => {
     if (!Array.isArray(activeCategories) || activeCategories.length === 0) return [];
@@ -150,15 +208,26 @@ const Posts = ({ apiBase }) => {
     return Array.isArray(labels) ? labels : [];
   }, [activeCategories, category, type]);
 
-  const activeCategory = category || "All";
-  const activeType = type || "All";
-  const activeLabel = label || "All";
-  const categoryChips = Array.isArray(activeCategories) ? activeCategories.map((c) => c.name) : [];
+  const activeCategory = category || "";
+  const activeType = type || "";
+  const activeLabel = label || "";
+  const categoryChips = selectedCategoryObj?.name ? [selectedCategoryObj.name] : [];
   const typeChips = useMemo(() => {
-    if (!category) return typeOptions;
-    return typeOptions;
-  }, [category, typeOptions]);
-  const labelChips = labelOptions;
+    return ["All Types", ...typeOptions];
+  }, [typeOptions]);
+  const labelChips = useMemo(() => ["All Labels", ...labelOptions], [labelOptions]);
+
+  useEffect(() => {
+    if (type && !typeOptions.includes(type)) {
+      setType("");
+    }
+  }, [typeOptions, type]);
+
+  useEffect(() => {
+    if (label && !labelOptions.includes(label)) {
+      setLabel("");
+    }
+  }, [labelOptions, label]);
 
   const pageNumbers = useMemo(() => {
     return Array.from({ length: Math.min(pages, 4) }, (_, i) => i + 1);
@@ -199,14 +268,8 @@ const Posts = ({ apiBase }) => {
       <section className="search-section">
         <div className="filter-panel">
           <div className="filter-column">
-            <div className="filter-title">All Categories</div>
+            <div className="filter-title">Categories</div>
             <div className="filter-list">
-              <button
-                className={`filter-chip ${activeCategory === "All" ? "active" : ""}`}
-                onClick={() => { setCategory(""); setType(""); setLabel(""); setPage(1); }}
-              >
-                All
-              </button>
               {categoryChips.map((cat) => (
                 <button
                   key={cat}
@@ -220,20 +283,13 @@ const Posts = ({ apiBase }) => {
           </div>
 
           <div className="filter-column">
-            <div className="filter-title">All Types</div>
+            <div className="filter-title">Types</div>
             <div className="filter-list">
-              <button
-                className={`filter-chip ${activeType === "All" ? "active" : ""}`}
-                onClick={() => { setType(""); setLabel(""); setPage(1); }}
-                disabled={!typeChips.length}
-              >
-                All
-              </button>
               {typeChips.map((t) => (
                 <button
                   key={t}
-                  className={`filter-chip ${activeType === t ? "active" : ""}`}
-                  onClick={() => { setType(t); setLabel(""); setPage(1); }}
+                  className={`filter-chip ${t === "All Types" ? (!activeType ? "active" : "") : (activeType === t ? "active" : "")}`}
+                  onClick={() => { setType(t === "All Types" ? "" : t); setLabel(""); setPage(1); }}
                 >
                   {t}
                 </button>
@@ -242,20 +298,13 @@ const Posts = ({ apiBase }) => {
           </div>
 
           <div className="filter-column">
-            <div className="filter-title">All Labels</div>
+            <div className="filter-title">Labels</div>
             <div className="filter-list">
-              <button
-                className={`filter-chip ${activeLabel === "All" ? "active" : ""}`}
-                onClick={() => { setLabel(""); setPage(1); }}
-                disabled={!labelChips.length}
-              >
-                All
-              </button>
               {labelChips.map((lbl) => (
                 <button
                   key={lbl}
-                  className={`filter-chip ${activeLabel === lbl ? "active" : ""}`}
-                  onClick={() => { setLabel(lbl); setPage(1); }}
+                  className={`filter-chip ${lbl === "All Labels" ? (!activeLabel ? "active" : "") : (activeLabel === lbl ? "active" : "")}`}
+                  onClick={() => { setLabel(lbl === "All Labels" ? "" : lbl); setPage(1); }}
                 >
                   {lbl}
                 </button>
@@ -268,13 +317,25 @@ const Posts = ({ apiBase }) => {
             type="text"
             placeholder="Search posts..."
             value={searchInput}
-            onChange={(e) => { setSearchInput(e.target.value); }}
+            onChange={(e) => {
+              const value = e.target.value || "";
+              setSearchInput(value);
+              setSearch(value.trim());
+              setPage(1);
+            }}
+            onKeyDown={async (e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                await logSearch();
+                setSearch((searchInput || "").trim());
+                setPage(1);
+              }
+            }}
           />
           <select
             value={category}
             onChange={(e) => { setCategory(e.target.value); setType(""); setLabel(""); setPage(1); }}
           >
-            <option value="">All Categories</option>
             {categorySelectOptions.map((cat) => (
               <option key={cat._id} value={cat.name}>{cat.name}</option>
             ))}
@@ -323,7 +384,7 @@ const Posts = ({ apiBase }) => {
             className="primary-btn"
             onClick={async () => {
               await logSearch();
-              setSearch(searchInput);
+              setSearch((searchInput || "").trim());
               setPage(1);
             }}
           >

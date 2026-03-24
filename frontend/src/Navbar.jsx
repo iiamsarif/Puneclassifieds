@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import logo from "./logo.png";
+import { getWebSettings } from "./webSettingsCache";
 
 const Navbar = ({ apiBase }) => {
   const [open, setOpen] = useState(false);
@@ -40,8 +41,7 @@ const Navbar = ({ apiBase }) => {
 
   useEffect(() => {
     if (!apiBase) return;
-    fetch(`${apiBase}/api/settings/web`)
-      .then((r) => r.json())
+    getWebSettings(apiBase)
       .then((data) => setMarqueeText(data?.marqueeText || ""))
       .catch(console.error);
   }, [apiBase]);

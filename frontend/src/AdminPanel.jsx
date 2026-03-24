@@ -9,6 +9,7 @@ import locationsIcon from "./images/admin-icons/locations.svg";
 import newsIcon from "./images/admin-icons/news.svg";
 import notificationsIcon from "./images/admin-icons/notifications.svg";
 import settingsIcon from "./images/admin-icons/settings.svg";
+import { invalidateWebSettingsCache } from "./webSettingsCache";
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -110,7 +111,27 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     homeWideAd: "",
     sideAd1: "",
     sideAd2: "",
-    sideAd3: ""
+    sideAd3: "",
+    newsWideAd: "",
+    newsSideAd1: "",
+    newsSideAd2: "",
+    newsSideAd3: "",
+    jobsWideAd: "",
+    jobsSideAd1: "",
+    jobsSideAd2: "",
+    jobsSideAd3: "",
+    propertyWideAd: "",
+    propertySideAd1: "",
+    propertySideAd2: "",
+    propertySideAd3: "",
+    petsWideAd: "",
+    petsSideAd1: "",
+    petsSideAd2: "",
+    petsSideAd3: "",
+    servicesWideAd: "",
+    servicesSideAd1: "",
+    servicesSideAd2: "",
+    servicesSideAd3: ""
   });
   const [heroVideoFile, setHeroVideoFile] = useState(null);
   const [popupVideoFile, setPopupVideoFile] = useState(null);
@@ -165,6 +186,9 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [editImageFiles, setEditImageFiles] = useState([]);
   const [editImagePreviews, setEditImagePreviews] = useState([]);
   const [editImageNotice, setEditImageNotice] = useState("");
+  const [settingsDirty, setSettingsDirty] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("home");
+  const settingsDirtyRef = useRef(false);
 
   const [pendingPage, setPendingPage] = useState(1);
   const [approvedPage, setApprovedPage] = useState(1);
@@ -248,6 +272,14 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   };
 
   useEffect(() => {
+    settingsDirtyRef.current = settingsDirty;
+  }, [settingsDirty]);
+
+  useEffect(() => {
+    if (active !== "settings") setSettingsDirty(false);
+  }, [active]);
+
+  useEffect(() => {
     if (!hasLoadedRef.current) return;
     saveCache({
       pending,
@@ -319,6 +351,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       if (isAll || section === "settings" || section === "dashboard") {
         jobs.push(
             fetchJson(`${apiBase}/api/settings/web`).then((s) =>
+              !settingsDirtyRef.current &&
               setSettings({
                 heroHeading: s?.heroHeading || "",
                 heroSubheading: s?.heroSubheading || "",
@@ -342,7 +375,27 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 homeWideAd: s?.homeWideAd || "",
                 sideAd1: s?.sideAd1 || "",
                 sideAd2: s?.sideAd2 || "",
-                sideAd3: s?.sideAd3 || ""
+                sideAd3: s?.sideAd3 || "",
+                newsWideAd: s?.newsWideAd || "",
+                newsSideAd1: s?.newsSideAd1 || "",
+                newsSideAd2: s?.newsSideAd2 || "",
+                newsSideAd3: s?.newsSideAd3 || "",
+                jobsWideAd: s?.jobsWideAd || "",
+                jobsSideAd1: s?.jobsSideAd1 || "",
+                jobsSideAd2: s?.jobsSideAd2 || "",
+                jobsSideAd3: s?.jobsSideAd3 || "",
+                propertyWideAd: s?.propertyWideAd || "",
+                propertySideAd1: s?.propertySideAd1 || "",
+                propertySideAd2: s?.propertySideAd2 || "",
+                propertySideAd3: s?.propertySideAd3 || "",
+                petsWideAd: s?.petsWideAd || "",
+                petsSideAd1: s?.petsSideAd1 || "",
+                petsSideAd2: s?.petsSideAd2 || "",
+                petsSideAd3: s?.petsSideAd3 || "",
+                servicesWideAd: s?.servicesWideAd || "",
+                servicesSideAd1: s?.servicesSideAd1 || "",
+                servicesSideAd2: s?.servicesSideAd2 || "",
+                servicesSideAd3: s?.servicesSideAd3 || ""
               })
             )
           );
@@ -1016,7 +1069,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   };
 
   const saveSettings = async (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
     await withLoading(async () => {
       const res = await fetch(`${apiBase}/api/settings/web`, {
         method: "PUT",
@@ -1027,8 +1080,29 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         body: JSON.stringify(settings)
       });
       if (!res.ok) throw new Error("Failed to update settings.");
+      setSettingsDirty(false);
+      invalidateWebSettingsCache(apiBase);
       void loadData(active);
     }, "Settings updated");
+  };
+
+  const uploadSettingsImage = async (field, file) => {
+    if (!file) return;
+    await withLoading(async () => {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch(`${apiBase}/api/settings/upload-image`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.message || "Failed to upload image.");
+      const nextUrl = data.imageUrl || "";
+      if (!nextUrl) throw new Error("Upload failed: no image URL returned.");
+      setSettings((prev) => ({ ...prev, [field]: nextUrl, ...(field === "heroBg1" ? { heroBg: nextUrl } : {}) }));
+      setSettingsDirty(true);
+    }, "Image uploaded. Save settings to apply.");
   };
 
   const uploadHeroVideo = async () => {
@@ -1443,6 +1517,32 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       }
     });
   }, [active, chartSource]);
+
+  const renderImageSetting = (label, key, placeholder) => (
+    <div className="settings-field" key={key}>
+      <label className="field-label">{label}</label>
+      <input
+        type="text"
+        placeholder={placeholder || label}
+        value={settings[key] || ""}
+        onChange={(e) => {
+          const value = e.target.value;
+          setSettings((prev) => ({ ...prev, [key]: value, ...(key === "heroBg1" ? { heroBg: value } : {}) }));
+          setSettingsDirty(true);
+        }}
+      />
+      <input
+        type="file"
+        accept="image/*"
+        onChange={(e) => uploadSettingsImage(key, e.target.files?.[0])}
+      />
+      {settings[key] && (
+        <div className="settings-image-preview">
+          <img src={settings[key]} alt={label} loading="lazy" />
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <main className="admin-page">
@@ -2592,227 +2692,136 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         )}
 
         {active === "settings" && (
-          <section className="section form-section">
+          <section className="section settings-page-section">
             <div className="section-head">
               <h2>Web Settings</h2>
             </div>
-            <form className="form-card" onSubmit={saveSettings}>
-              <label className="field-label">Hero Heading</label>
-              <input
-                type="text"
-                placeholder="Hero Heading"
-                value={settings.heroHeading}
-                onChange={(e) => setSettings({ ...settings, heroHeading: e.target.value })}
-              />
-              <label className="field-label">Hero Subheading</label>
-              <textarea
-                rows="2"
-                placeholder="Hero Subheading"
-                value={settings.heroSubheading}
-                onChange={(e) => setSettings({ ...settings, heroSubheading: e.target.value })}
-              />
-              <label className="field-label">Hero Background Image URL 1</label>
-              <input
-                type="text"
-                placeholder="Hero Background Image URL 1"
-                value={settings.heroBg1}
-                onChange={(e) =>
-                  setSettings({ ...settings, heroBg1: e.target.value, heroBg: e.target.value })
-                }
-              />
-              <label className="field-label">Hero Background Image URL 2</label>
-              <input
-                type="text"
-                placeholder="Hero Background Image URL 2"
-                value={settings.heroBg2}
-                onChange={(e) => setSettings({ ...settings, heroBg2: e.target.value })}
-              />
-              <label className="field-label">Hero Background Image URL 3</label>
-              <input
-                type="text"
-                placeholder="Hero Background Image URL 3"
-                value={settings.heroBg3}
-                onChange={(e) => setSettings({ ...settings, heroBg3: e.target.value })}
-              />
-              <label className="field-label">Hero Background Image URL 4</label>
-              <input
-                type="text"
-                placeholder="Hero Background Image URL 4"
-                value={settings.heroBg4}
-                onChange={(e) => setSettings({ ...settings, heroBg4: e.target.value })}
-              />
-              <label className="field-label">Hero Media Mode</label>
-              <div className="toggle-row">
-                <label className="toggle-option">
-                  <input
-                    type="radio"
-                    name="heroMediaMode"
-                    value="image"
-                    checked={settings.heroMediaMode === "image"}
-                    onChange={() => setSettings({ ...settings, heroMediaMode: "image" })}
-                  />
-                  Photo
-                </label>
-                <label className="toggle-option">
-                  <input
-                    type="radio"
-                    name="heroMediaMode"
-                    value="video"
-                    checked={settings.heroMediaMode === "video"}
-                    onChange={() => setSettings({ ...settings, heroMediaMode: "video" })}
-                  />
-                  Video
-                </label>
+            <div className="settings-layout">
+              <aside className="settings-nav">
+                <button className={settingsTab === "home" ? "active" : ""} onClick={() => setSettingsTab("home")}>Home Page <span>{">"}</span></button>
+                <button className={settingsTab === "news" ? "active" : ""} onClick={() => setSettingsTab("news")}>News Ads <span>{">"}</span></button>
+                <button className={settingsTab === "jobs" ? "active" : ""} onClick={() => setSettingsTab("jobs")}>Jobs Ads <span>{">"}</span></button>
+                <button className={settingsTab === "property" ? "active" : ""} onClick={() => setSettingsTab("property")}>Property Ads <span>{">"}</span></button>
+                <button className={settingsTab === "pets" ? "active" : ""} onClick={() => setSettingsTab("pets")}>Pets Ads <span>{">"}</span></button>
+                <button className={settingsTab === "services" ? "active" : ""} onClick={() => setSettingsTab("services")}>Services Ads <span>{">"}</span></button>
+                <button className={settingsTab === "banners" ? "active" : ""} onClick={() => setSettingsTab("banners")}>Banners Ads <span>{">"}</span></button>
+              </aside>
+
+              <div className="settings-panel form-card" onChangeCapture={() => setSettingsDirty(true)}>
+                {settingsTab === "home" && (
+                  <>
+                    <h3>Home Page</h3>
+                    <label className="field-label">Hero Heading</label>
+                    <input type="text" value={settings.heroHeading} onChange={(e) => setSettings({ ...settings, heroHeading: e.target.value })} />
+                    <label className="field-label">Hero Subheading</label>
+                    <textarea rows="2" value={settings.heroSubheading} onChange={(e) => setSettings({ ...settings, heroSubheading: e.target.value })} />
+
+                    {renderImageSetting("Hero Background Image URL 1", "heroBg1", "Hero Background Image URL 1")}
+                    {renderImageSetting("Hero Background Image URL 2", "heroBg2", "Hero Background Image URL 2")}
+                    {renderImageSetting("Hero Background Image URL 3", "heroBg3", "Hero Background Image URL 3")}
+                    {renderImageSetting("Hero Background Image URL 4", "heroBg4", "Hero Background Image URL 4")}
+                    {renderImageSetting("Hero Foreground Image URL", "heroImage", "Hero Foreground Image URL")}
+
+                    <label className="field-label">Hero Media Mode</label>
+                    <div className="toggle-row">
+                      <label className="toggle-option"><input type="radio" name="heroMediaMode" value="image" checked={settings.heroMediaMode === "image"} onChange={() => setSettings({ ...settings, heroMediaMode: "image" })} />Photo</label>
+                      <label className="toggle-option"><input type="radio" name="heroMediaMode" value="video" checked={settings.heroMediaMode === "video"} onChange={() => setSettings({ ...settings, heroMediaMode: "video" })} />Video</label>
+                    </div>
+
+                    <label className="field-label">Upload Hero Video (converts to WebM)</label>
+                    <input type="file" accept="video/*" onChange={(e) => setHeroVideoFile(e.target.files[0])} />
+                    <button type="button" className="primary-btn" onClick={uploadHeroVideo}>Upload Video</button>
+                    {settings.heroVideo && <div className="media-preview"><video src={settings.heroVideo} controls muted /></div>}
+
+                    <label className="field-label">Popup Video Enable</label>
+                    <label className="toggle-option"><input type="checkbox" checked={!!settings.popupEnabled} onChange={(e) => setSettings({ ...settings, popupEnabled: e.target.checked })} /><span>Show popup video on homepage</span></label>
+                    <label className="field-label">Popup Read More Link</label>
+                    <input type="text" value={settings.popupLink} onChange={(e) => setSettings({ ...settings, popupLink: e.target.value })} />
+                    <label className="field-label">Upload Popup Video (converts to WebM)</label>
+                    <input type="file" accept="video/*" onChange={(e) => setPopupVideoFile(e.target.files[0])} />
+                    <button type="button" className="primary-btn" onClick={uploadPopupVideo}>Upload Popup Video</button>
+                    {settings.popupVideo && <div className="media-preview"><video src={settings.popupVideo} controls muted /></div>}
+
+                    <label className="field-label">Header Marquee Text</label>
+                    <textarea rows="3" value={settings.marqueeText} onChange={(e) => setSettings({ ...settings, marqueeText: e.target.value })} />
+                    <label className="field-label">Support / Contact Email</label>
+                    <input type="email" value={settings.contactEmail} onChange={(e) => setSettings({ ...settings, contactEmail: e.target.value })} />
+
+                    {renderImageSetting("Home Wide Banner Ad URL (Home: above latest news section)", "homeWideAd")}
+                    {renderImageSetting("Banner Ad Side 1 URL (Home: right side square)", "sideAd1")}
+                    {renderImageSetting("Banner Ad Side 2 URL (Home: right side square)", "sideAd2")}
+                    {renderImageSetting("Banner Ad Side 3 URL (Home: right side square)", "sideAd3")}
+                    <button className="primary-btn" type="button" onClick={saveSettings}>Save Home Settings</button>
+                  </>
+                )}
+
+                {settingsTab === "news" && (
+                  <>
+                    <h3>News Page Ads</h3>
+                    {renderImageSetting("News Wide Banner Ad URL", "newsWideAd")}
+                    {renderImageSetting("News Side Ad 1 URL", "newsSideAd1")}
+                    {renderImageSetting("News Side Ad 2 URL", "newsSideAd2")}
+                    {renderImageSetting("News Side Ad 3 URL", "newsSideAd3")}
+                    <button className="primary-btn" type="button" onClick={saveSettings}>Save News Settings</button>
+                  </>
+                )}
+
+                {settingsTab === "jobs" && (
+                  <>
+                    <h3>Jobs Category Ads</h3>
+                    {renderImageSetting("Jobs Wide Banner Ad URL", "jobsWideAd")}
+                    {renderImageSetting("Jobs Side Ad 1 URL", "jobsSideAd1")}
+                    {renderImageSetting("Jobs Side Ad 2 URL", "jobsSideAd2")}
+                    {renderImageSetting("Jobs Side Ad 3 URL", "jobsSideAd3")}
+                    <button className="primary-btn" type="button" onClick={saveSettings}>Save Jobs Settings</button>
+                  </>
+                )}
+
+                {settingsTab === "property" && (
+                  <>
+                    <h3>Property Category Ads</h3>
+                    {renderImageSetting("Property Wide Banner Ad URL", "propertyWideAd")}
+                    {renderImageSetting("Property Side Ad 1 URL", "propertySideAd1")}
+                    {renderImageSetting("Property Side Ad 2 URL", "propertySideAd2")}
+                    {renderImageSetting("Property Side Ad 3 URL", "propertySideAd3")}
+                    <button className="primary-btn" type="button" onClick={saveSettings}>Save Property Settings</button>
+                  </>
+                )}
+
+                {settingsTab === "pets" && (
+                  <>
+                    <h3>Pets Category Ads</h3>
+                    {renderImageSetting("Pets Wide Banner Ad URL", "petsWideAd")}
+                    {renderImageSetting("Pets Side Ad 1 URL", "petsSideAd1")}
+                    {renderImageSetting("Pets Side Ad 2 URL", "petsSideAd2")}
+                    {renderImageSetting("Pets Side Ad 3 URL", "petsSideAd3")}
+                    <button className="primary-btn" type="button" onClick={saveSettings}>Save Pets Settings</button>
+                  </>
+                )}
+
+                {settingsTab === "services" && (
+                  <>
+                    <h3>Services Category Ads</h3>
+                    {renderImageSetting("Services Wide Banner Ad URL", "servicesWideAd")}
+                    {renderImageSetting("Services Side Ad 1 URL", "servicesSideAd1")}
+                    {renderImageSetting("Services Side Ad 2 URL", "servicesSideAd2")}
+                    {renderImageSetting("Services Side Ad 3 URL", "servicesSideAd3")}
+                    <button className="primary-btn" type="button" onClick={saveSettings}>Save Services Settings</button>
+                  </>
+                )}
+
+                {settingsTab === "banners" && (
+                  <>
+                    <h3>Banners Ads</h3>
+                    {renderImageSetting("Banner 1 Image URL (Home: below Categories)", "banner1")}
+                    {renderImageSetting("Banner 2 Image URL (News page)", "banner2")}
+                    {renderImageSetting("Banner 3 Image URL (Community Posts page)", "banner3")}
+                    {renderImageSetting("Banner 4 Image URL (Government Notifications page)", "banner4")}
+                    <button className="primary-btn" type="button" onClick={saveSettings}>Save Banner Settings</button>
+                  </>
+                )}
               </div>
-
-              {settings.heroMediaMode === "image" && (
-                <>
-                  <label className="field-label">Hero Foreground Image URL</label>
-                  <input
-                    type="text"
-                    placeholder="Hero Image URL"
-                    value={settings.heroImage}
-                    onChange={(e) => setSettings({ ...settings, heroImage: e.target.value })}
-                  />
-                  {settings.heroImage && (
-                    <div className="media-preview">
-                      <img src={settings.heroImage} alt="Hero Preview" />
-                    </div>
-                  )}
-                </>
-              )}
-
-              {settings.heroMediaMode === "video" && (
-                <>
-                  <label className="field-label">Upload Hero Video (converts to WebM)</label>
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={(e) => setHeroVideoFile(e.target.files[0])}
-                  />
-                  <button
-                    type="button"
-                    className="primary-btn"
-                    onClick={uploadHeroVideo}
-                  >
-                    Upload Video
-                  </button>
-                  {settings.heroVideo && (
-                    <div className="media-preview">
-                      <video src={settings.heroVideo} controls muted />
-                    </div>
-                  )}
-                </>
-              )}
-              <div className="form-divider"></div>
-              <label className="field-label">Popup Video Enable</label>
-              <label className="toggle-option">
-                <input
-                  type="checkbox"
-                  checked={!!settings.popupEnabled}
-                  onChange={(e) =>
-                    setSettings({ ...settings, popupEnabled: e.target.checked })
-                  }
-                />
-                <span>Show popup video on homepage</span>
-              </label>
-              <label className="field-label">Popup Read More Link</label>
-              <input
-                type="text"
-                placeholder="https://..."
-                value={settings.popupLink}
-                onChange={(e) => setSettings({ ...settings, popupLink: e.target.value })}
-              />
-              <label className="field-label">Header Marquee Text</label>
-              <textarea
-                rows="2"
-                placeholder="Enter marquee text shown below header"
-                value={settings.marqueeText}
-                onChange={(e) => setSettings({ ...settings, marqueeText: e.target.value })}
-              />
-              <label className="field-label">Upload Popup Video (converts to WebM)</label>
-              <input
-                type="file"
-                accept="video/*"
-                onChange={(e) => setPopupVideoFile(e.target.files[0])}
-              />
-              <button
-                type="button"
-                className="primary-btn"
-                onClick={uploadPopupVideo}
-              >
-                Upload Popup Video
-              </button>
-              {settings.popupVideo && (
-                <div className="media-preview">
-                  <video src={settings.popupVideo} controls muted />
-                </div>
-              )}
-              <label className="field-label">Support / Contact Email</label>
-              <input
-                type="email"
-                placeholder="Contact Email"
-                value={settings.contactEmail}
-                onChange={(e) => setSettings({ ...settings, contactEmail: e.target.value })}
-              />
-              <label className="field-label">Banner 1 Image URL (Home: below Categories)</label>
-              <input
-                type="text"
-                placeholder="Banner 1 Image URL"
-                value={settings.banner1}
-                onChange={(e) => setSettings({ ...settings, banner1: e.target.value })}
-              />
-              <label className="field-label">Banner 2 Image URL (News page)</label>
-              <input
-                type="text"
-                placeholder="Banner 2 Image URL"
-                value={settings.banner2}
-                onChange={(e) => setSettings({ ...settings, banner2: e.target.value })}
-              />
-              <label className="field-label">Banner 3 Image URL (Community Posts page)</label>
-              <input
-                type="text"
-                placeholder="Banner 3 Image URL"
-                value={settings.banner3}
-                onChange={(e) => setSettings({ ...settings, banner3: e.target.value })}
-              />
-              <label className="field-label">Banner 4 Image URL (Government Notifications page)</label>
-              <input
-                type="text"
-                placeholder="Banner 4 Image URL"
-                value={settings.banner4}
-                onChange={(e) => setSettings({ ...settings, banner4: e.target.value })}
-              />
-              <label className="field-label">Home Wide Banner Ad URL (Home: above latest news section)</label>
-              <input
-                type="text"
-                placeholder="Home Wide Banner Ad URL"
-                value={settings.homeWideAd}
-                onChange={(e) => setSettings({ ...settings, homeWideAd: e.target.value })}
-              />
-              <label className="field-label">Banner Ad Side 1 URL (Home: right side square)</label>
-              <input
-                type="text"
-                placeholder="Banner Ad Side 1 URL"
-                value={settings.sideAd1}
-                onChange={(e) => setSettings({ ...settings, sideAd1: e.target.value })}
-              />
-              <label className="field-label">Banner Ad Side 2 URL (Home: right side square)</label>
-              <input
-                type="text"
-                placeholder="Banner Ad Side 2 URL"
-                value={settings.sideAd2}
-                onChange={(e) => setSettings({ ...settings, sideAd2: e.target.value })}
-              />
-              <label className="field-label">Banner Ad Side 3 URL (Home: right side square)</label>
-              <input
-                type="text"
-                placeholder="Banner Ad Side 3 URL"
-                value={settings.sideAd3}
-                onChange={(e) => setSettings({ ...settings, sideAd3: e.target.value })}
-              />
-              <button className="primary-btn" type="submit">Save Settings</button>
-            </form>
+            </div>
           </section>
         )}
       </section>

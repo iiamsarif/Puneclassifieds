@@ -1,7 +1,33 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { getWebSettings } from "./webSettingsCache";
 
 const fallbackImage = "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80";
+
+const pickCategoryAds = (settings, categoryName) => {
+  const key = String(categoryName || "").toLowerCase();
+  const mapping = {
+    jobs: { wide: "jobsWideAd", side1: "jobsSideAd1", side2: "jobsSideAd2", side3: "jobsSideAd3" },
+    property: { wide: "propertyWideAd", side1: "propertySideAd1", side2: "propertySideAd2", side3: "propertySideAd3" },
+    pets: { wide: "petsWideAd", side1: "petsSideAd1", side2: "petsSideAd2", side3: "petsSideAd3" },
+    services: { wide: "servicesWideAd", side1: "servicesSideAd1", side2: "servicesSideAd2", side3: "servicesSideAd3" }
+  };
+  const m = mapping[key];
+  if (!m) {
+    return {
+      wide: "",
+      sideAd1: "",
+      sideAd2: "",
+      sideAd3: ""
+    };
+  }
+  return {
+    wide: settings?.[m.wide] || "",
+    sideAd1: settings?.[m.side1] || "",
+    sideAd2: settings?.[m.side2] || "",
+    sideAd3: settings?.[m.side3] || ""
+  };
+};
 
 const PostDetails = ({ apiBase }) => {
   const { id } = useParams();
@@ -31,17 +57,18 @@ const PostDetails = ({ apiBase }) => {
   useEffect(() => {
     Promise.all([
       fetch(`${apiBase}/api/posts/${id}`).then((r) => r.json()),
-      fetch(`${apiBase}/api/settings/web`).then((r) => r.json())
+      getWebSettings(apiBase)
     ])
       .then(([data, settings]) => {
         setPost(data);
         const first = (data?.imageUrls && data.imageUrls[0]) || data?.imageUrl || data?.imageData || "";
         setActiveImage(first);
-        setHomeWideAd(settings?.homeWideAd || "");
+        const ads = pickCategoryAds(settings, data?.category);
+        setHomeWideAd(ads.wide);
         setSideAds({
-          sideAd1: settings?.sideAd1 || "",
-          sideAd2: settings?.sideAd2 || "",
-          sideAd3: settings?.sideAd3 || ""
+          sideAd1: ads.sideAd1,
+          sideAd2: ads.sideAd2,
+          sideAd3: ads.sideAd3
         });
       })
       .catch(console.error);
