@@ -4471,7 +4471,7 @@ small { font-size: 13px; }
 }
 
 .navbar .logo-text {
-  background: linear-gradient(120deg, #74befb 0%, #9011f3 45%, #ff6800 100%) !important;
+  background: linear-gradient(120deg, #008cff 0%, #7800d6 45%, #ff6800 100%) !important;
   -webkit-background-clip: text !important;
   background-clip: text !important;
   color: transparent !important;
@@ -4480,7 +4480,7 @@ small { font-size: 13px; }
 
 .navbar.scrolled .logo-text,
 .navbar:not(.scrolled) .logo-text {
-  background: linear-gradient(120deg, #74befb 0%, #9011f3 45%, #ff6800 100%) !important;
+  background: linear-gradient(120deg, #008cff 0%, #7800d6 45%, #ff6800 100%) !important;
   -webkit-background-clip: text !important;
   background-clip: text !important;
   color: transparent !important;
@@ -4524,7 +4524,7 @@ small { font-size: 13px; }
 /* Keep admin brand exactly same style/colors as user header brand */
 .admin-header .admin-brand-text,
 .admin-header .admin-brand-text span {
-  background: linear-gradient(120deg, #74befb 0%, #9011f3 45%, #ff6800 100%) !important;
+  background: linear-gradient(120deg, #008cff 0%, #7800d6 45%, #ff6800 100%) !important;
   -webkit-background-clip: text !important;
   background-clip: text !important;
   color: transparent !important;
@@ -4540,18 +4540,19 @@ small { font-size: 13px; }
 /* Bigger user header logo without increasing navbar height */
 .navbar .navbar-inner {
   padding-top: 8px !important;
-  padding-bottom: 8px !important;
+  padding-bottom: 0px !important;
   min-height: 82px;
 }
 
 .navbar .logo-mark {
-  width: 78px !important;
-  height: 78px !important;
+  width: 97px !important;
+  height: 97px !important;
+  transform: none !important;
+  margin-right: 8px;
 }
 
-.navbar .logo-text,
-.admin-brand-text {
-  font-size: 21px !important;
+.navbar .logo-text {
+  font-size: 30px !important;
   line-height: 1.05;
 }
 
@@ -4563,13 +4564,12 @@ small { font-size: 13px; }
   }
 
   .navbar .logo-mark {
-    width: 60px !important;
-    height: 60px !important;
+    width: 56px !important;
+    height: 56px !important;
   }
 
-  .navbar .logo-text,
-  .admin-brand-text {
-    font-size: 21px !important;
+  .navbar .logo-text {
+    font-size: 16px !important;
   }
 }
 
@@ -4844,25 +4844,36 @@ small { font-size: 13px; }
   }
 }
 
-/* Final brand text style: uppercase + same size in user/admin headers */
-.navbar .logo-text,
+/* Final brand text style */
+.navbar .logo-text {
+  text-transform: none !important;
+  font-size: 30px !important;
+  line-height: 1.05 !important;
+}
+
 .admin-header .admin-brand-text {
-  text-transform: uppercase !important;
+  text-transform: none !important;
   font-size: 21px !important;
   line-height: 1.05 !important;
 }
 
 .navbar .logo-text span,
 .admin-header .admin-brand-text span {
-  text-transform: uppercase !important;
+  text-transform: none !important;
 }
 
 @media (max-width: 768px) {
+  .navbar .logo-text,
+  .navbar .logo-text span {
+    font-size: 16px !important;
+    line-height: 1.05 !important;
+  }
+
   .admin-header .admin-brand-text,
   .admin-header .admin-brand-text span {
     font-size: 11px !important;
     line-height: 1.05 !important;
     letter-spacing: -0.15px !important;
-    text-transform: uppercase !important;
+    text-transform: none !important;
   }
 }
