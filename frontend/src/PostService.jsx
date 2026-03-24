@@ -25,6 +25,8 @@ const PostService = ({ apiBase }) => {
     imagePreview: ""
   });
   const [status, setStatus] = useState("");
+  const [statusType, setStatusType] = useState("success");
+  const [submitting, setSubmitting] = useState(false);
   const [imageNotice, setImageNotice] = useState("");
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
@@ -100,14 +102,18 @@ const PostService = ({ apiBase }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus("");
+    setStatusType("success");
     setImageNotice("");
+    setSubmitting(true);
     try {
       if (form.description.trim().split(/\s+/).filter(Boolean).length > maxWords) {
         setStatus(`Description exceeds ${maxWords} words.`);
+        setStatusType("error");
         return;
       }
       if (imageFiles.length > maxImages) {
         setStatus(`You can upload up to ${maxImages} images.`);
+        setStatusType("error");
         return;
       }
       const formData = new FormData();
@@ -140,6 +146,7 @@ const PostService = ({ apiBase }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Submission failed");
       setStatus("Submitted. Awaiting admin approval.");
+      setStatusType("success");
       setForm({
         title: "",
         category: "",
@@ -165,6 +172,9 @@ const PostService = ({ apiBase }) => {
       setImagePreviews([]);
     } catch (err) {
       setStatus(err.message);
+      setStatusType("error");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -355,10 +365,22 @@ const PostService = ({ apiBase }) => {
               ))}
             </div>
           )}
-          <button className="primary-btn" type="submit">Submit Listing</button>
-          {status && <p className="success">{status}</p>}
+          <button className="primary-btn" type="submit" disabled={submitting}>
+            {submitting ? "Submitting..." : "Submit Listing"}
+          </button>
+          {status && <p className={statusType === "error" ? "error" : "success"}>{status}</p>}
         </form>
       </section>
+      {submitting && (
+        <div className="loading-overlay" role="status" aria-live="polite">
+          <div className="loading-card">
+            <div className="loader-dot"></div>
+            <div className="loader-dot"></div>
+            <div className="loader-dot"></div>
+           
+          </div>
+        </div>
+      )}
     </main>
   );
 };
