@@ -196,15 +196,36 @@ const deleteUpload = async (url) => {
   await fs.promises.unlink(filePath).catch(() => {});
 };
 let isConnected = false;
+let indexesEnsured = false;
 
-app.use("/uploads", express.static(uploadDir));
+app.use(
+  "/uploads",
+  express.static(uploadDir, {
+    maxAge: "30d",
+    immutable: true
+  })
+);
 
 const getDb = async () => {
   if (!isConnected) {
     await client.connect();
     isConnected = true;
   }
-  return client.db(dbName);
+  const db = client.db(dbName);
+  if (!indexesEnsured) {
+    indexesEnsured = true;
+    await Promise.allSettled([
+      db.collection("posts").createIndex({ status: 1, createdAt: -1 }),
+      db.collection("posts").createIndex({ category: 1, createdAt: -1 }),
+      db.collection("posts").createIndex({ type: 1, label: 1 }),
+      db.collection("posts").createIndex({ location: 1, pinCode: 1 }),
+      db.collection("posts").createIndex({ paid: 1, createdAt: -1 }),
+      db.collection("news").createIndex({ createdAt: -1 }),
+      db.collection("notifications").createIndex({ createdAt: -1 }),
+      db.collection("settings").createIndex({ key: 1 }, { unique: true })
+    ]);
+  }
+  return db;
 };
 
 const ensureLocations = async (db) => {
@@ -317,7 +338,17 @@ const listItems = (collection) => async (req, res) => {
   const query = {};
   if (req.query.status) query.status = req.query.status;
   const db = await getDb();
-  const items = await db.collection(collection).find(query).sort({ createdAt: -1 }).toArray();
+  const projection =
+    collection === "news"
+      ? { imageData: 0 }
+      : collection === "notifications"
+        ? { pdfData: 0 }
+        : {};
+  const items = await db
+    .collection(collection)
+    .find(query, { projection })
+    .sort({ createdAt: -1 })
+    .toArray();
   return res.json(items);
 };
 
@@ -545,23 +576,24 @@ app.get("/api/posts", async (req, res) => {
   }
   if (location) and.push({ location });
   if (search) {
+    const safeSearch = escapeRegex(String(search).trim());
     and.push({
       $or: [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } }
+        { title: { $regex: safeSearch, $options: "i" } },
+        { description: { $regex: safeSearch, $options: "i" } }
       ]
     });
   }
   const query = and.length ? { $and: and } : {};
-  const total = await db.collection("posts").find(query).toArray();
+  const total = await db.collection("posts").countDocuments(query);
   const items = await db
     .collection("posts")
-    .find(query)
+    .find(query, { projection: { imageData: 0 } })
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
     .limit(limit)
     .toArray();
-  return res.json({ items, page, pages: Math.ceil(total.length / limit) || 1 });
+  return res.json({ items, page, pages: Math.ceil(total / limit) || 1 });
 });
 
 app.get("/api/posts/:id", async (req, res) => {
@@ -860,6 +892,7 @@ app.get("/api/settings/web", async (req, res) => {
     const legacy = await db.collection("settings").find({ key: "hero" }).toArray();
     web = legacy[0] || {};
   }
+  res.set("Cache-Control", "public, max-age=60");
   return res.json({
     heroHeading: web.heroHeading || "",
     heroSubheading: web.heroSubheading || "",
@@ -884,7 +917,27 @@ app.get("/api/settings/web", async (req, res) => {
     homeWideAd: web.homeWideAd || "",
     sideAd1: web.sideAd1 || "",
     sideAd2: web.sideAd2 || "",
-    sideAd3: web.sideAd3 || ""
+    sideAd3: web.sideAd3 || "",
+    newsWideAd: web.newsWideAd || "",
+    newsSideAd1: web.newsSideAd1 || "",
+    newsSideAd2: web.newsSideAd2 || "",
+    newsSideAd3: web.newsSideAd3 || "",
+    jobsWideAd: web.jobsWideAd || "",
+    jobsSideAd1: web.jobsSideAd1 || "",
+    jobsSideAd2: web.jobsSideAd2 || "",
+    jobsSideAd3: web.jobsSideAd3 || "",
+    propertyWideAd: web.propertyWideAd || "",
+    propertySideAd1: web.propertySideAd1 || "",
+    propertySideAd2: web.propertySideAd2 || "",
+    propertySideAd3: web.propertySideAd3 || "",
+    petsWideAd: web.petsWideAd || "",
+    petsSideAd1: web.petsSideAd1 || "",
+    petsSideAd2: web.petsSideAd2 || "",
+    petsSideAd3: web.petsSideAd3 || "",
+    servicesWideAd: web.servicesWideAd || "",
+    servicesSideAd1: web.servicesSideAd1 || "",
+    servicesSideAd2: web.servicesSideAd2 || "",
+    servicesSideAd3: web.servicesSideAd3 || ""
   });
 });
 
@@ -933,6 +986,26 @@ app.put("/api/settings/web", adminMiddleware, async (req, res) => {
         sideAd1: req.body.sideAd1 || "",
         sideAd2: req.body.sideAd2 || "",
         sideAd3: req.body.sideAd3 || "",
+        newsWideAd: req.body.newsWideAd || "",
+        newsSideAd1: req.body.newsSideAd1 || "",
+        newsSideAd2: req.body.newsSideAd2 || "",
+        newsSideAd3: req.body.newsSideAd3 || "",
+        jobsWideAd: req.body.jobsWideAd || "",
+        jobsSideAd1: req.body.jobsSideAd1 || "",
+        jobsSideAd2: req.body.jobsSideAd2 || "",
+        jobsSideAd3: req.body.jobsSideAd3 || "",
+        propertyWideAd: req.body.propertyWideAd || "",
+        propertySideAd1: req.body.propertySideAd1 || "",
+        propertySideAd2: req.body.propertySideAd2 || "",
+        propertySideAd3: req.body.propertySideAd3 || "",
+        petsWideAd: req.body.petsWideAd || "",
+        petsSideAd1: req.body.petsSideAd1 || "",
+        petsSideAd2: req.body.petsSideAd2 || "",
+        petsSideAd3: req.body.petsSideAd3 || "",
+        servicesWideAd: req.body.servicesWideAd || "",
+        servicesSideAd1: req.body.servicesSideAd1 || "",
+        servicesSideAd2: req.body.servicesSideAd2 || "",
+        servicesSideAd3: req.body.servicesSideAd3 || "",
         updatedAt: new Date()
       }
     },
@@ -1021,6 +1094,18 @@ app.post("/api/settings/popup-video", adminMiddleware, maybeVideoSingle("video")
       message: "FFmpeg not available. Using original video upload.",
       popupVideo: fallbackUrl
     });
+  }
+});
+
+app.post("/api/settings/upload-image", adminMiddleware, maybeImageSingle("image"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "Image file required" });
+  }
+  try {
+    const imageUrl = await saveWebpImage(req, req.file);
+    return res.json({ message: "Image uploaded", imageUrl });
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to process image" });
   }
 });
 
