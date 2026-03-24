@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useState } from "react";
+﻿import React, { Suspense, lazy, useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
@@ -22,7 +22,7 @@ const AdminAccess = lazy(() => import("./AdminAccess.jsx"));
 const AdminPanel = lazy(() => import("./AdminPanel.jsx"));
 const PostService = lazy(() => import("./PostService.jsx"));
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+const API_BASE = import.meta.env.VITE_API_BASE || "https://puneclassifieds.onrender.com";
 
 const RequireAuth = ({ children }) => {
   const token = localStorage.getItem("token");
