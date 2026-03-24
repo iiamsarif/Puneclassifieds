@@ -109,6 +109,18 @@ const Navbar = ({ apiBase }) => {
           </span>
         </NavLink>
         <nav className={`nav-links ${open ? "open" : ""}`}>
+          <div className="mobile-menu-brand">
+            <img className="logo-mark" src={logo} alt="PuneClassifieds" />
+            <span className="logo-text">Pune<span>Classifieds</span></span>
+            <button
+              type="button"
+              className="mobile-menu-close"
+              aria-label="Close menu"
+              onClick={() => setOpen(false)}
+            >
+              ×
+            </button>
+          </div>
           <NavLink to="/" onClick={() => setOpen(false)}>Home</NavLink>
           <button className="nav-link-button" type="button" onClick={goPricing}>Pricing</button>
           <NavLink to="/news" onClick={() => setOpen(false)}>News</NavLink>
@@ -161,7 +173,7 @@ const Navbar = ({ apiBase }) => {
               </div>
             );
           })}
-          <NavLink to="/notifications" onClick={() => setOpen(false)}>Government</NavLink>
+          <NavLink to="/notifications" onClick={() => setOpen(false)}>Notifications</NavLink>
           <NavLink to="/contact" onClick={() => setOpen(false)}>Contact</NavLink>
         </nav>
         <div className="nav-actions">
@@ -203,8 +215,14 @@ const Navbar = ({ apiBase }) => {
             onClick={() => setOpen(!open)}
             aria-label="Toggle navigation"
           >
-            <span></span>
-            <span></span>
+            {open ? (
+              <span className="hamburger-close">×</span>
+            ) : (
+              <>
+                <span></span>
+                <span></span>
+              </>
+            )}
           </button>
         </div>
       </div>

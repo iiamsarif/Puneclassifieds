@@ -27,6 +27,11 @@ body {
   background: #f7f8ff;
   min-height: 100vh;
   overflow-x: hidden;
+  padding-top: 0;
+}
+
+body.admin-mode {
+  padding-top: 0 !important;
 }
 
 a {
@@ -51,7 +56,7 @@ img {
 }
 
 .page {
-  padding: 147px 8vw 80px;
+  padding: 138px 6vw 60px;
 }
 
 .home-page.page {
@@ -140,7 +145,7 @@ img {
 }
 
 .navbar {
-  position: fixed;
+  position: sticky;
   top: 0;
   left: 0;
   right: 0;
@@ -205,6 +210,14 @@ img {
   gap: 2px;
   font-weight: 600;
   letter-spacing: 0.4px;
+}
+
+.mobile-menu-brand {
+  display: none;
+}
+
+.mobile-menu-close {
+  display: none;
 }
 
 .logo-mark {
@@ -466,6 +479,13 @@ img {
   height: 2px;
   background: var(--ink);
   transition: transform 0.3s ease;
+}
+
+.hamburger-close {
+  font-size: 28px;
+  line-height: 1;
+  color: #111827;
+  font-weight: 500;
 }
 
 .hamburger.active span:first-child {
@@ -2862,8 +2882,10 @@ small { font-size: 13px; }
 }
 
 .admin-header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 20;
   background: #ffffff;
   border-bottom: 1px solid var(--line);
@@ -2905,7 +2927,7 @@ small { font-size: 13px; }
   display: grid;
   grid-template-columns: 240px 1fr;
   gap: 24px;
-  padding: 10px;
+  padding: 100px 10px 10px;
 }
 
 .admin-sidebar {
@@ -3336,7 +3358,7 @@ small { font-size: 13px; }
     padding: 16px 2vw;
   }
   .page {
-    padding: 120px 6vw 60px;
+    padding: 138px 6vw 60px;
   }
   .hero-layout {
     flex-direction: column;
@@ -3347,18 +3369,52 @@ small { font-size: 13px; }
   }
   .nav-links {
     position: absolute;
-    top: 73px;
+    top: 0;
     left: 0;
     right: 0;
     z-index: 1000;
     background: #ffffff;
     flex-direction: column;
-    padding: 24px 6vw 40px;
-    min-height: calc(100vh - 64px);
+    padding: 20px 6vw 32px;
+    min-height: 100vh;
+    height: 100vh;
+    overflow-y: auto;
     opacity: 0;
     pointer-events: none;
     transform: translateY(-10px);
     transition: 0.3s ease;
+  }
+
+  .mobile-menu-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 12px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .mobile-menu-brand .logo-mark {
+    width: 52px !important;
+    height: 52px !important;
+    margin-right: 0;
+  }
+
+  .mobile-menu-brand .logo-text {
+    font-size: 20px !important;
+    line-height: 1.05 !important;
+  }
+
+  .mobile-menu-close {
+    display: inline-flex;
+    margin-left: auto;
+    border: none;
+    background: transparent;
+    color: #111827;
+    font-size: 30px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 6px;
   }
 .nav-links.open {
   opacity: 1;
@@ -3501,7 +3557,7 @@ small { font-size: 13px; }
   }
 
   .admin-page {
-    padding: 10px;
+    padding: 98px 10px 10px;
     align-items: flex-start;
   }
 
@@ -4249,6 +4305,10 @@ small { font-size: 13px; }
   background: #ffffff;
 }
 
+.navbar.scrolled .hamburger-close {
+  color: #ffffff;
+}
+
 @media (max-width: 768px) {
   .admin-brand-text {
     font-size: 14px;
@@ -4539,14 +4599,14 @@ small { font-size: 13px; }
 
 /* Bigger user header logo without increasing navbar height */
 .navbar .navbar-inner {
-  padding-top: 8px !important;
-  padding-bottom: 0px !important;
-  min-height: 82px;
+  padding-top: 4px !important;
+  padding-bottom: 0 !important;
+  min-height: 112px;
 }
 
 .navbar .logo-mark {
-  width: 97px !important;
-  height: 97px !important;
+  width: 108px !important;
+  height: 108px !important;
   transform: none !important;
   margin-right: 8px;
 }
@@ -4871,7 +4931,7 @@ small { font-size: 13px; }
 
   .admin-header .admin-brand-text,
   .admin-header .admin-brand-text span {
-    font-size: 11px !important;
+    font-size: 14px !important;
     line-height: 1.05 !important;
     letter-spacing: -0.15px !important;
     text-transform: none !important;
