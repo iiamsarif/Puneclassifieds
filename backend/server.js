@@ -130,6 +130,12 @@ const maybeImageSingle = (field) => (req, res, next) => {
   }
   return next();
 };
+const maybeImageFields = (fields) => (req, res, next) => {
+  if (req.is("multipart/form-data")) {
+    return imageUpload.fields(fields)(req, res, next);
+  }
+  return next();
+};
 const maybeImageArray = (field, max) => (req, res, next) => {
   if (req.is("multipart/form-data")) {
     return imageUpload.array(field, max)(req, res, next);
@@ -340,7 +346,7 @@ const listItems = (collection) => async (req, res) => {
   const db = await getDb();
   const projection =
     collection === "news"
-      ? { imageData: 0 }
+      ? { imageData: 0, image2Data: 0 }
       : collection === "notifications"
         ? { pdfData: 0 }
         : {};
@@ -383,15 +389,35 @@ app.put("/api/pets/:id/approve", adminMiddleware, approveItem("pets"));
 app.delete("/api/pets/:id", adminMiddleware, deleteItem("pets"));
 
 app.get("/api/news", listItems("news"));
-app.post("/api/news", adminMiddleware, maybeImageSingle("image"), async (req, res) => {
+app.post(
+  "/api/news",
+  adminMiddleware,
+  maybeImageFields([
+    { name: "image1File", maxCount: 1 },
+    { name: "image2File", maxCount: 1 }
+  ]),
+  async (req, res) => {
   const db = await getDb();
-  const imageUrl = (await saveWebpImage(req, req.file)) || (req.body.image || "");
+  const image1File = req.files?.image1File?.[0] || null;
+  const image2File = req.files?.image2File?.[0] || null;
+  const imageUrl = (await saveWebpImage(req, image1File)) || (req.body.image || "");
+  const image2Url = (await saveWebpImage(req, image2File)) || (req.body.image2 || "");
+  const description1 = req.body.description1 || req.body.description || "";
   const payload = {
-    title: req.body.title,
-    category: req.body.category,
-    description: req.body.description,
+    title: req.body.title || req.body.heading1 || "",
+    heading1: req.body.heading1 || req.body.title || "",
+    category: req.body.category || "",
+    description: description1,
+    description1,
+    description2: req.body.description2 || "",
+    heading2: req.body.heading2 || "",
+    description3: req.body.description3 || "",
+    youtubeLink: req.body.youtubeLink || "",
+    description4: req.body.description4 || "",
     image: imageUrl || "",
     imageData: imageUrl ? "" : (req.body.imageData || ""),
+    image2: image2Url || "",
+    image2Data: image2Url ? "" : (req.body.image2Data || ""),
     date: req.body.date,
     createdAt: new Date()
   };
@@ -403,17 +429,43 @@ app.get("/api/news/:id", async (req, res) => {
   const item = await db.collection("news").find({ _id: new ObjectId(req.params.id) }).toArray();
   return res.json(item[0]);
 });
-app.put("/api/news/:id", adminMiddleware, maybeImageSingle("image"), async (req, res) => {
+app.put(
+  "/api/news/:id",
+  adminMiddleware,
+  maybeImageFields([
+    { name: "image1File", maxCount: 1 },
+    { name: "image2File", maxCount: 1 }
+  ]),
+  async (req, res) => {
   const db = await getDb();
   const existing = await db.collection("news").find({ _id: new ObjectId(req.params.id) }).toArray();
   const current = existing[0] || {};
-  const imageUrl = (await saveWebpImage(req, req.file)) || req.body.image || current.image || "";
+  const image1File = req.files?.image1File?.[0] || null;
+  const image2File = req.files?.image2File?.[0] || null;
+  const imageUrl = (await saveWebpImage(req, image1File)) || req.body.image || current.image || "";
+  const image2Url = (await saveWebpImage(req, image2File)) || req.body.image2 || current.image2 || "";
+  if (image1File && current.image && current.image !== imageUrl) {
+    await deleteUpload(current.image);
+  }
+  if (image2File && current.image2 && current.image2 !== image2Url) {
+    await deleteUpload(current.image2);
+  }
+  const description1 = req.body.description1 || req.body.description || current.description1 || current.description || "";
   const payload = {
-    title: req.body.title || current.title,
+    title: req.body.title || req.body.heading1 || current.title,
+    heading1: req.body.heading1 || req.body.title || current.heading1 || current.title || "",
     category: req.body.category || current.category,
-    description: req.body.description || current.description,
+    description: description1,
+    description1,
+    description2: req.body.description2 || current.description2 || "",
+    heading2: req.body.heading2 || current.heading2 || "",
+    description3: req.body.description3 || current.description3 || "",
+    youtubeLink: req.body.youtubeLink || current.youtubeLink || "",
+    description4: req.body.description4 || current.description4 || "",
     image: imageUrl,
     imageData: imageUrl ? "" : (req.body.imageData || current.imageData || ""),
+    image2: image2Url,
+    image2Data: image2Url ? "" : (req.body.image2Data || current.image2Data || ""),
     date: req.body.date || current.date,
     updatedAt: new Date()
   };
@@ -425,6 +477,10 @@ app.put("/api/news/:id", adminMiddleware, maybeImageSingle("image"), async (req,
 });
 app.delete("/api/news/:id", adminMiddleware, async (req, res) => {
   const db = await getDb();
+  const existing = await db.collection("news").find({ _id: new ObjectId(req.params.id) }).toArray();
+  const current = existing[0] || {};
+  if (current.image) await deleteUpload(current.image);
+  if (current.image2) await deleteUpload(current.image2);
   await db.collection("news").deleteOne({ _id: new ObjectId(req.params.id) });
   return res.json({ message: "News deleted" });
 });
