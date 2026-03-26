@@ -58,7 +58,21 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [locationEditOpen, setLocationEditOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState(null);
   const [typeInput, setTypeInput] = useState("");
-  const [newsForm, setNewsForm] = useState({ title: "", category: "", description: "", image: "", imageData: "", date: "" });
+  const [newsForm, setNewsForm] = useState({
+    title: "",
+    category: "",
+    description1: "",
+    description2: "",
+    heading2: "",
+    description3: "",
+    youtubeLink: "",
+    description4: "",
+    image: "",
+    imageData: "",
+    image2: "",
+    image2Data: "",
+    date: ""
+  });
   const [noteForm, setNoteForm] = useState({
     serialNo: "",
     subject: "",
@@ -72,8 +86,23 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   });
   const [editNewsOpen, setEditNewsOpen] = useState(false);
   const [editingNews, setEditingNews] = useState(null);
-  const [editNewsForm, setEditNewsForm] = useState({ title: "", category: "", description: "", image: "", imageData: "", date: "" });
-  const [editNewsFile, setEditNewsFile] = useState(null);
+  const [editNewsForm, setEditNewsForm] = useState({
+    title: "",
+    category: "",
+    description1: "",
+    description2: "",
+    heading2: "",
+    description3: "",
+    youtubeLink: "",
+    description4: "",
+    image: "",
+    imageData: "",
+    image2: "",
+    image2Data: "",
+    date: ""
+  });
+  const [editNewsFile1, setEditNewsFile1] = useState(null);
+  const [editNewsFile2, setEditNewsFile2] = useState(null);
   const [editNoteOpen, setEditNoteOpen] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
   const [editNoteForm, setEditNoteForm] = useState({
@@ -181,7 +210,8 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [toasts, setToasts] = useState([]);
   const [pdfReady, setPdfReady] = useState(true);
   const [categoryFile, setCategoryFile] = useState(null);
-  const [newsImageFile, setNewsImageFile] = useState(null);
+  const [newsImageFile1, setNewsImageFile1] = useState(null);
+  const [newsImageFile2, setNewsImageFile2] = useState(null);
   const [notePdfFile, setNotePdfFile] = useState(null);
   const [editImageFiles, setEditImageFiles] = useState([]);
   const [editImagePreviews, setEditImagePreviews] = useState([]);
@@ -828,15 +858,23 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const addNews = async (e) => {
     e.preventDefault();
     setStatus("");
-    await withLoading(async () => {
+    return await withLoading(async () => {
       const tempId = `temp-${Date.now()}`;
       const tempItem = {
         _id: tempId,
         title: newsForm.title,
         category: newsForm.category,
-        description: newsForm.description,
+        description: newsForm.description1,
+        description1: newsForm.description1,
+        description2: newsForm.description2,
+        heading2: newsForm.heading2,
+        description3: newsForm.description3,
+        youtubeLink: newsForm.youtubeLink,
+        description4: newsForm.description4,
         image: newsForm.image,
         imageData: newsForm.imageData,
+        image2: newsForm.image2,
+        image2Data: newsForm.image2Data,
         date: newsForm.date
       };
       setNewsList((prev) => [tempItem, ...prev]);
@@ -844,10 +882,17 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       const formData = new FormData();
       formData.append("title", newsForm.title);
       formData.append("category", newsForm.category);
-      formData.append("description", newsForm.description);
+      formData.append("description1", newsForm.description1);
+      formData.append("description2", newsForm.description2);
+      formData.append("heading2", newsForm.heading2);
+      formData.append("description3", newsForm.description3);
+      formData.append("youtubeLink", newsForm.youtubeLink);
+      formData.append("description4", newsForm.description4);
       formData.append("date", newsForm.date);
       if (newsForm.image.trim()) formData.append("image", newsForm.image.trim());
-      if (newsImageFile) formData.append("image", newsImageFile);
+      if (newsForm.image2.trim()) formData.append("image2", newsForm.image2.trim());
+      if (newsImageFile1) formData.append("image1File", newsImageFile1);
+      if (newsImageFile2) formData.append("image2File", newsImageFile2);
       const res = await fetch(`${apiBase}/api/news`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -859,20 +904,46 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       if (data.item) {
         setNewsList((prev) => prev.map((item) => (item._id === tempId ? data.item : item)));
       }
-      setNewsForm({ title: "", category: "", description: "", image: "", imageData: "", date: "" });
-      setNewsImageFile(null);
+      setNewsForm({
+        title: "",
+        category: "",
+        description1: "",
+        description2: "",
+        heading2: "",
+        description3: "",
+        youtubeLink: "",
+        description4: "",
+        image: "",
+        imageData: "",
+        image2: "",
+        image2Data: "",
+        date: ""
+      });
+      setNewsImageFile1(null);
+      setNewsImageFile2(null);
       void loadData(active);
+      return true;
     }, "News added");
   };
 
-  const handleEditNewsImage = (file) => {
+  const handleEditNewsImage = (file, key = "image1") => {
     if (!file) {
-      setEditNewsFile(null);
-      setEditNewsForm((prev) => ({ ...prev, imageData: "" }));
+      if (key === "image1") {
+        setEditNewsFile1(null);
+        setEditNewsForm((prev) => ({ ...prev, imageData: "" }));
+      } else {
+        setEditNewsFile2(null);
+        setEditNewsForm((prev) => ({ ...prev, image2Data: "" }));
+      }
       return;
     }
-    setEditNewsFile(file);
-    setEditNewsForm((prev) => ({ ...prev, imageData: URL.createObjectURL(file) }));
+    if (key === "image1") {
+      setEditNewsFile1(file);
+      setEditNewsForm((prev) => ({ ...prev, imageData: URL.createObjectURL(file) }));
+    } else {
+      setEditNewsFile2(file);
+      setEditNewsForm((prev) => ({ ...prev, image2Data: URL.createObjectURL(file) }));
+    }
   };
 
   const startEditNews = (item) => {
@@ -880,12 +951,20 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     setEditNewsForm({
       title: item.title || "",
       category: item.category || "",
-      description: item.description || "",
+      description1: item.description1 || item.description || "",
+      description2: item.description2 || "",
+      heading2: item.heading2 || "",
+      description3: item.description3 || "",
+      youtubeLink: item.youtubeLink || "",
+      description4: item.description4 || "",
       image: item.image || "",
       imageData: item.imageData || "",
+      image2: item.image2 || "",
+      image2Data: item.image2Data || "",
       date: item.date || ""
     });
-    setEditNewsFile(null);
+    setEditNewsFile1(null);
+    setEditNewsFile2(null);
     setEditNewsOpen(true);
   };
 
@@ -895,10 +974,17 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       const formData = new FormData();
       formData.append("title", editNewsForm.title);
       formData.append("category", editNewsForm.category);
-      formData.append("description", editNewsForm.description);
+      formData.append("description1", editNewsForm.description1);
+      formData.append("description2", editNewsForm.description2);
+      formData.append("heading2", editNewsForm.heading2);
+      formData.append("description3", editNewsForm.description3);
+      formData.append("youtubeLink", editNewsForm.youtubeLink);
+      formData.append("description4", editNewsForm.description4);
       formData.append("date", editNewsForm.date);
       if (editNewsForm.image.trim()) formData.append("image", editNewsForm.image.trim());
-      if (editNewsFile) formData.append("image", editNewsFile);
+      if (editNewsForm.image2.trim()) formData.append("image2", editNewsForm.image2.trim());
+      if (editNewsFile1) formData.append("image1File", editNewsFile1);
+      if (editNewsFile2) formData.append("image2File", editNewsFile2);
       const res = await fetch(`${apiBase}/api/news/${editingNews}`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}` },
@@ -908,11 +994,12 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       if (data.invalid) throw new Error("API base misconfigured. Update VITE_API_BASE for production.");
       if (!res.ok) throw new Error(data.message || "Failed to update news.");
       setNewsList((prev) =>
-        prev.map((n) => (n._id === editingNews ? { ...n, ...editNewsForm } : n))
+        prev.map((n) => (n._id === editingNews ? { ...n, ...editNewsForm, description: editNewsForm.description1 } : n))
       );
       setEditNewsOpen(false);
       setEditingNews(null);
-      setEditNewsFile(null);
+      setEditNewsFile1(null);
+      setEditNewsFile2(null);
       void loadData(active);
     }, "News updated");
   };
@@ -1145,14 +1232,24 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     }, "Popup video updated");
   };
 
-  const handleNewsImage = (file) => {
+  const handleNewsImage = (file, key = "image1") => {
     if (!file) {
-      setNewsImageFile(null);
-      setNewsForm((prev) => ({ ...prev, imageData: "" }));
+      if (key === "image1") {
+        setNewsImageFile1(null);
+        setNewsForm((prev) => ({ ...prev, imageData: "" }));
+      } else {
+        setNewsImageFile2(null);
+        setNewsForm((prev) => ({ ...prev, image2Data: "" }));
+      }
       return;
     }
-    setNewsImageFile(file);
-    setNewsForm((prev) => ({ ...prev, imageData: URL.createObjectURL(file) }));
+    if (key === "image1") {
+      setNewsImageFile1(file);
+      setNewsForm((prev) => ({ ...prev, imageData: URL.createObjectURL(file) }));
+    } else {
+      setNewsImageFile2(file);
+      setNewsForm((prev) => ({ ...prev, image2Data: URL.createObjectURL(file) }));
+    }
   };
 
   const handleCategoryIcon = (file) => {
@@ -2316,10 +2413,16 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 <h3>Add News</h3>
                 <button className="ghost-btn" onClick={() => setNewsOpen(false)}>Close</button>
               </div>
-              <form className="form-card" onSubmit={(e) => { addNews(e); setNewsOpen(false); }}>
+              <form
+                className="form-card"
+                onSubmit={async (e) => {
+                  const ok = await addNews(e);
+                  if (ok) setNewsOpen(false);
+                }}
+              >
                 <input
                   type="text"
-                  placeholder="Title"
+                  placeholder="Heading"
                   value={newsForm.title}
                   onChange={(e) => setNewsForm({ ...newsForm, title: e.target.value })}
                   required
@@ -2333,25 +2436,76 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 />
                 <textarea
                   rows="3"
-                  placeholder="Description"
-                  value={newsForm.description}
-                  onChange={(e) => setNewsForm({ ...newsForm, description: e.target.value })}
+                  placeholder="Description 1"
+                  value={newsForm.description1}
+                  onChange={(e) => setNewsForm({ ...newsForm, description1: e.target.value })}
+                  required
+                />
+                <textarea
+                  rows="3"
+                  placeholder="Description 2"
+                  value={newsForm.description2}
+                  onChange={(e) => setNewsForm({ ...newsForm, description2: e.target.value })}
+                />
+                <input
+                  type="text"
+                  placeholder="Heading 2"
+                  value={newsForm.heading2}
+                  onChange={(e) => setNewsForm({ ...newsForm, heading2: e.target.value })}
+                />
+                <textarea
+                  rows="3"
+                  placeholder="Description 3"
+                  value={newsForm.description3}
+                  onChange={(e) => setNewsForm({ ...newsForm, description3: e.target.value })}
+                />
+                <input
+                  type="url"
+                  placeholder="YouTube Video Link (optional)"
+                  value={newsForm.youtubeLink}
+                  onChange={(e) => setNewsForm({ ...newsForm, youtubeLink: e.target.value })}
+                />
+                <textarea
+                  rows="3"
+                  placeholder="Description 4"
+                  value={newsForm.description4}
+                  onChange={(e) => setNewsForm({ ...newsForm, description4: e.target.value })}
                   required
                 />
                 <input
                   type="text"
-                  placeholder="Image URL"
+                  placeholder="Image URL 1 (Main)"
                   value={newsForm.image}
                   onChange={(e) => {
-                    setNewsImageFile(null);
+                    setNewsImageFile1(null);
                     setNewsForm({ ...newsForm, image: e.target.value, imageData: "" });
                   }}
                 />
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => handleNewsImage(e.target.files[0])}
+                  onChange={(e) => handleNewsImage(e.target.files[0], "image1")}
                 />
+                {(newsForm.imageData || newsForm.image) && (
+                  <img className="preview-image" src={newsForm.imageData || newsForm.image} alt="Main news preview" />
+                )}
+                <input
+                  type="text"
+                  placeholder="Image URL 2"
+                  value={newsForm.image2}
+                  onChange={(e) => {
+                    setNewsImageFile2(null);
+                    setNewsForm({ ...newsForm, image2: e.target.value, image2Data: "" });
+                  }}
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleNewsImage(e.target.files[0], "image2")}
+                />
+                {(newsForm.image2Data || newsForm.image2) && (
+                  <img className="preview-image" src={newsForm.image2Data || newsForm.image2} alt="Secondary news preview" />
+                )}
                 <input
                   type="date"
                   value={newsForm.date}
@@ -2473,24 +2627,69 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                 />
                 <textarea
                   rows="3"
-                  placeholder="Description"
-                  value={editNewsForm.description}
-                  onChange={(e) => setEditNewsForm({ ...editNewsForm, description: e.target.value })}
+                  placeholder="Description 1"
+                  value={editNewsForm.description1}
+                  onChange={(e) => setEditNewsForm({ ...editNewsForm, description1: e.target.value })}
+                  required
+                />
+                <textarea
+                  rows="3"
+                  placeholder="Description 2"
+                  value={editNewsForm.description2}
+                  onChange={(e) => setEditNewsForm({ ...editNewsForm, description2: e.target.value })}
+                />
+                <input
+                  type="text"
+                  placeholder="Heading 2"
+                  value={editNewsForm.heading2}
+                  onChange={(e) => setEditNewsForm({ ...editNewsForm, heading2: e.target.value })}
+                />
+                <textarea
+                  rows="3"
+                  placeholder="Description 3"
+                  value={editNewsForm.description3}
+                  onChange={(e) => setEditNewsForm({ ...editNewsForm, description3: e.target.value })}
+                />
+                <input
+                  type="url"
+                  placeholder="YouTube Video Link (optional)"
+                  value={editNewsForm.youtubeLink}
+                  onChange={(e) => setEditNewsForm({ ...editNewsForm, youtubeLink: e.target.value })}
+                />
+                <textarea
+                  rows="3"
+                  placeholder="Description 4"
+                  value={editNewsForm.description4}
+                  onChange={(e) => setEditNewsForm({ ...editNewsForm, description4: e.target.value })}
                   required
                 />
                 <input
                   type="text"
-                  placeholder="Image URL"
+                  placeholder="Image URL 1 (Main)"
                   value={editNewsForm.image}
                   onChange={(e) => setEditNewsForm({ ...editNewsForm, image: e.target.value, imageData: "" })}
                 />
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => handleEditNewsImage(e.target.files[0])}
+                  onChange={(e) => handleEditNewsImage(e.target.files[0], "image1")}
                 />
                 {(editNewsForm.imageData || editNewsForm.image) && (
                   <img className="preview-image" src={editNewsForm.imageData || editNewsForm.image} alt="Preview" />
+                )}
+                <input
+                  type="text"
+                  placeholder="Image URL 2"
+                  value={editNewsForm.image2}
+                  onChange={(e) => setEditNewsForm({ ...editNewsForm, image2: e.target.value, image2Data: "" })}
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleEditNewsImage(e.target.files[0], "image2")}
+                />
+                {(editNewsForm.image2Data || editNewsForm.image2) && (
+                  <img className="preview-image" src={editNewsForm.image2Data || editNewsForm.image2} alt="Secondary preview" />
                 )}
                 <input
                   type="date"
