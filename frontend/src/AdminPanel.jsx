@@ -66,6 +66,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     heading2: "",
     description3: "",
     youtubeLink: "",
+    videoUrl: "",
     description4: "",
     image: "",
     imageData: "",
@@ -94,6 +95,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     heading2: "",
     description3: "",
     youtubeLink: "",
+    videoUrl: "",
     description4: "",
     image: "",
     imageData: "",
@@ -103,6 +105,9 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   });
   const [editNewsFile1, setEditNewsFile1] = useState(null);
   const [editNewsFile2, setEditNewsFile2] = useState(null);
+  const [editNewsVideoFile, setEditNewsVideoFile] = useState(null);
+  const [editNewsVideoPreview, setEditNewsVideoPreview] = useState("");
+  const [editNewsRemoveVideo, setEditNewsRemoveVideo] = useState(false);
   const [editNoteOpen, setEditNoteOpen] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
   const [editNoteForm, setEditNoteForm] = useState({
@@ -212,6 +217,8 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const [categoryFile, setCategoryFile] = useState(null);
   const [newsImageFile1, setNewsImageFile1] = useState(null);
   const [newsImageFile2, setNewsImageFile2] = useState(null);
+  const [newsVideoFile, setNewsVideoFile] = useState(null);
+  const [newsVideoPreview, setNewsVideoPreview] = useState("");
   const [notePdfFile, setNotePdfFile] = useState(null);
   const [editImageFiles, setEditImageFiles] = useState([]);
   const [editImagePreviews, setEditImagePreviews] = useState([]);
@@ -243,6 +250,11 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
   const hasLoadedRef = useRef(false);
 
   const token = localStorage.getItem("adminToken");
+
+  useEffect(() => () => {
+    if (newsVideoPreview) URL.revokeObjectURL(newsVideoPreview);
+    if (editNewsVideoPreview) URL.revokeObjectURL(editNewsVideoPreview);
+  }, [newsVideoPreview, editNewsVideoPreview]);
 
   const pushToast = (message) => {
     const id = Date.now();
@@ -870,6 +882,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         heading2: newsForm.heading2,
         description3: newsForm.description3,
         youtubeLink: newsForm.youtubeLink,
+        videoUrl: newsForm.videoUrl,
         description4: newsForm.description4,
         image: newsForm.image,
         imageData: newsForm.imageData,
@@ -886,13 +899,15 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       formData.append("description2", newsForm.description2);
       formData.append("heading2", newsForm.heading2);
       formData.append("description3", newsForm.description3);
-      formData.append("youtubeLink", newsForm.youtubeLink);
+      formData.append("youtubeLink", newsForm.youtubeLink.trim());
+      formData.append("videoUrl", newsForm.videoUrl.trim());
       formData.append("description4", newsForm.description4);
       formData.append("date", newsForm.date);
       if (newsForm.image.trim()) formData.append("image", newsForm.image.trim());
       if (newsForm.image2.trim()) formData.append("image2", newsForm.image2.trim());
       if (newsImageFile1) formData.append("image1File", newsImageFile1);
       if (newsImageFile2) formData.append("image2File", newsImageFile2);
+      if (newsVideoFile) formData.append("video", newsVideoFile);
       const res = await fetch(`${apiBase}/api/news`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -912,6 +927,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
         heading2: "",
         description3: "",
         youtubeLink: "",
+        videoUrl: "",
         description4: "",
         image: "",
         imageData: "",
@@ -921,6 +937,9 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       });
       setNewsImageFile1(null);
       setNewsImageFile2(null);
+      setNewsVideoFile(null);
+      if (newsVideoPreview) URL.revokeObjectURL(newsVideoPreview);
+      setNewsVideoPreview("");
       void loadData(active);
       return true;
     }, "News added");
@@ -956,6 +975,7 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       heading2: item.heading2 || "",
       description3: item.description3 || "",
       youtubeLink: item.youtubeLink || "",
+      videoUrl: item.videoUrl || "",
       description4: item.description4 || "",
       image: item.image || "",
       imageData: item.imageData || "",
@@ -965,6 +985,10 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
     });
     setEditNewsFile1(null);
     setEditNewsFile2(null);
+    setEditNewsVideoFile(null);
+    if (editNewsVideoPreview) URL.revokeObjectURL(editNewsVideoPreview);
+    setEditNewsVideoPreview("");
+    setEditNewsRemoveVideo(false);
     setEditNewsOpen(true);
   };
 
@@ -978,13 +1002,16 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       formData.append("description2", editNewsForm.description2);
       formData.append("heading2", editNewsForm.heading2);
       formData.append("description3", editNewsForm.description3);
-      formData.append("youtubeLink", editNewsForm.youtubeLink);
+      formData.append("youtubeLink", editNewsForm.youtubeLink.trim());
+      formData.append("videoUrl", editNewsForm.videoUrl.trim());
+      formData.append("removeVideo", editNewsRemoveVideo ? "1" : "0");
       formData.append("description4", editNewsForm.description4);
       formData.append("date", editNewsForm.date);
       if (editNewsForm.image.trim()) formData.append("image", editNewsForm.image.trim());
       if (editNewsForm.image2.trim()) formData.append("image2", editNewsForm.image2.trim());
       if (editNewsFile1) formData.append("image1File", editNewsFile1);
       if (editNewsFile2) formData.append("image2File", editNewsFile2);
+      if (editNewsVideoFile) formData.append("video", editNewsVideoFile);
       const res = await fetch(`${apiBase}/api/news/${editingNews}`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}` },
@@ -1000,6 +1027,10 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       setEditingNews(null);
       setEditNewsFile1(null);
       setEditNewsFile2(null);
+      setEditNewsVideoFile(null);
+      if (editNewsVideoPreview) URL.revokeObjectURL(editNewsVideoPreview);
+      setEditNewsVideoPreview("");
+      setEditNewsRemoveVideo(false);
       void loadData(active);
     }, "News updated");
   };
@@ -1250,6 +1281,43 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
       setNewsImageFile2(file);
       setNewsForm((prev) => ({ ...prev, image2Data: URL.createObjectURL(file) }));
     }
+  };
+
+  const handleNewsVideo = (file) => {
+    if (!file) {
+      setNewsVideoFile(null);
+      if (newsVideoPreview) URL.revokeObjectURL(newsVideoPreview);
+      setNewsVideoPreview("");
+      return;
+    }
+    if (newsVideoPreview) URL.revokeObjectURL(newsVideoPreview);
+    const preview = URL.createObjectURL(file);
+    setNewsVideoFile(file);
+    setNewsVideoPreview(preview);
+    setNewsForm((prev) => ({ ...prev, videoUrl: "" }));
+  };
+
+  const handleEditNewsVideo = (file) => {
+    if (!file) {
+      setEditNewsVideoFile(null);
+      if (editNewsVideoPreview) URL.revokeObjectURL(editNewsVideoPreview);
+      setEditNewsVideoPreview("");
+      return;
+    }
+    if (editNewsVideoPreview) URL.revokeObjectURL(editNewsVideoPreview);
+    const preview = URL.createObjectURL(file);
+    setEditNewsVideoFile(file);
+    setEditNewsVideoPreview(preview);
+    setEditNewsRemoveVideo(false);
+    setEditNewsForm((prev) => ({ ...prev, videoUrl: "" }));
+  };
+
+  const clearEditNewsVideo = () => {
+    setEditNewsVideoFile(null);
+    if (editNewsVideoPreview) URL.revokeObjectURL(editNewsVideoPreview);
+    setEditNewsVideoPreview("");
+    setEditNewsRemoveVideo(true);
+    setEditNewsForm((prev) => ({ ...prev, videoUrl: "" }));
   };
 
   const handleCategoryIcon = (file) => {
@@ -2465,6 +2533,34 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   value={newsForm.youtubeLink}
                   onChange={(e) => setNewsForm({ ...newsForm, youtubeLink: e.target.value })}
                 />
+                <input
+                  type="text"
+                  placeholder="Video URL (optional)"
+                  value={newsForm.videoUrl}
+                  onChange={(e) => {
+                    setNewsVideoFile(null);
+                    setNewsForm({ ...newsForm, videoUrl: e.target.value });
+                  }}
+                />
+                {!newsVideoFile && (
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => handleNewsVideo(e.target.files[0])}
+                  />
+                )}
+                {(newsVideoPreview || newsForm.videoUrl) && (
+                  <video className="preview-video" controls src={newsVideoPreview || newsForm.videoUrl} />
+                )}
+                {newsVideoFile && (
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={() => handleNewsVideo(null)}
+                  >
+                    Remove Uploaded Video
+                  </button>
+                )}
                 <textarea
                   rows="3"
                   placeholder="Description 4"
@@ -2656,6 +2752,39 @@ const AdminPanel = ({ apiBase, sidebarOpen, setSidebarOpen }) => {
                   value={editNewsForm.youtubeLink}
                   onChange={(e) => setEditNewsForm({ ...editNewsForm, youtubeLink: e.target.value })}
                 />
+                <input
+                  type="text"
+                  placeholder="Video URL (optional)"
+                  value={editNewsForm.videoUrl}
+                  onChange={(e) => {
+                    setEditNewsVideoFile(null);
+                    setEditNewsRemoveVideo(false);
+                    setEditNewsForm({ ...editNewsForm, videoUrl: e.target.value });
+                  }}
+                />
+                {!editNewsVideoFile && (
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => handleEditNewsVideo(e.target.files[0])}
+                  />
+                )}
+                {(editNewsVideoPreview || editNewsForm.videoUrl) && (
+                  <video
+                    className="preview-video"
+                    controls
+                    src={editNewsVideoPreview || editNewsForm.videoUrl}
+                  />
+                )}
+                {(editNewsVideoFile || editNewsForm.videoUrl) && (
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={clearEditNewsVideo}
+                  >
+                    Remove Video
+                  </button>
+                )}
                 <textarea
                   rows="3"
                   placeholder="Description 4"

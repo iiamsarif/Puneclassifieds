@@ -67,7 +67,11 @@ const NewsDetail = ({ apiBase }) => {
     () => [sideAds.sideAd1, sideAds.sideAd2, sideAds.sideAd3].filter(Boolean),
     [sideAds]
   );
-  const youtubeEmbedUrl = useMemo(() => getYoutubeEmbedUrl(news?.youtubeLink || ""), [news?.youtubeLink]);
+  const uploadedVideoUrl = (news?.videoUrl || "").trim();
+  const youtubeFromField = useMemo(() => getYoutubeEmbedUrl(news?.youtubeLink || ""), [news?.youtubeLink]);
+  const youtubeFromVideoUrl = useMemo(() => getYoutubeEmbedUrl(uploadedVideoUrl), [uploadedVideoUrl]);
+  const youtubeEmbedUrl = youtubeFromField || youtubeFromVideoUrl;
+  const directVideoUrl = youtubeFromVideoUrl ? "" : uploadedVideoUrl;
 
   if (!news) {
     return (
@@ -119,7 +123,13 @@ const NewsDetail = ({ apiBase }) => {
               />
             )}
             {news.description3 && <p className="news-text">{news.description3}</p>}
-            {youtubeEmbedUrl && (
+            {directVideoUrl ? (
+              <div className="news-video-wrap">
+                <video controls preload="metadata" playsInline>
+                  <source src={directVideoUrl} />
+                </video>
+              </div>
+            ) : youtubeEmbedUrl ? (
               <div className="news-video-wrap">
                 <iframe
                   src={youtubeEmbedUrl}
@@ -129,7 +139,7 @@ const NewsDetail = ({ apiBase }) => {
                   allowFullScreen
                 />
               </div>
-            )}
+            ) : null}
             {news.description4 && <p className="news-text">{news.description4}</p>}
           </div>
         </section>
