@@ -130,15 +130,19 @@ const maybeImageSingle = (field) => (req, res, next) => {
   }
   return next();
 };
-const maybeImageFields = (fields) => (req, res, next) => {
-  if (req.is("multipart/form-data")) {
-    return imageUpload.fields(fields)(req, res, next);
-  }
-  return next();
-};
 const maybeImageArray = (field, max) => (req, res, next) => {
   if (req.is("multipart/form-data")) {
     return imageUpload.array(field, max)(req, res, next);
+  }
+  return next();
+};
+const maybeNewsMediaFields = (req, res, next) => {
+  if (req.is("multipart/form-data")) {
+    return videoUpload.fields([
+      { name: "image1File", maxCount: 1 },
+      { name: "image2File", maxCount: 1 },
+      { name: "video", maxCount: 1 }
+    ])(req, res, next);
   }
   return next();
 };
@@ -150,6 +154,15 @@ const saveWebpImage = async (req, file) => {
   const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${baseName}.webp`;
   const outputPath = path.join(uploadDir, filename);
   await sharp(file.buffer).webp({ quality: 95 }).toFile(outputPath);
+  return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
+};
+const saveWebpImageFromPath = async (req, file) => {
+  if (!file || !file.path) return "";
+  const baseName = (path.parse(file.originalname || "image").name || "image").replace(/\s+/g, "-");
+  const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${baseName}.webp`;
+  const outputPath = path.join(uploadDir, filename);
+  await sharp(file.path).webp({ quality: 95 }).toFile(outputPath);
+  await fs.promises.unlink(file.path).catch(() => {});
   return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
 };
 const convertVideoToWebm = (inputPath) =>
@@ -392,16 +405,15 @@ app.get("/api/news", listItems("news"));
 app.post(
   "/api/news",
   adminMiddleware,
-  maybeImageFields([
-    { name: "image1File", maxCount: 1 },
-    { name: "image2File", maxCount: 1 }
-  ]),
+  maybeNewsMediaFields,
   async (req, res) => {
   const db = await getDb();
   const image1File = req.files?.image1File?.[0] || null;
   const image2File = req.files?.image2File?.[0] || null;
-  const imageUrl = (await saveWebpImage(req, image1File)) || (req.body.image || "");
-  const image2Url = (await saveWebpImage(req, image2File)) || (req.body.image2 || "");
+  const videoFile = req.files?.video?.[0] || null;
+  const imageUrl = (await saveWebpImageFromPath(req, image1File)) || (req.body.image || "");
+  const image2Url = (await saveWebpImageFromPath(req, image2File)) || (req.body.image2 || "");
+  const videoUrl = fileUrl(req, videoFile) || (req.body.videoUrl || "");
   const description1 = req.body.description1 || req.body.description || "";
   const payload = {
     title: req.body.title || req.body.heading1 || "",
@@ -413,6 +425,7 @@ app.post(
     heading2: req.body.heading2 || "",
     description3: req.body.description3 || "",
     youtubeLink: req.body.youtubeLink || "",
+    videoUrl,
     description4: req.body.description4 || "",
     image: imageUrl || "",
     imageData: imageUrl ? "" : (req.body.imageData || ""),
@@ -432,23 +445,37 @@ app.get("/api/news/:id", async (req, res) => {
 app.put(
   "/api/news/:id",
   adminMiddleware,
-  maybeImageFields([
-    { name: "image1File", maxCount: 1 },
-    { name: "image2File", maxCount: 1 }
-  ]),
+  maybeNewsMediaFields,
   async (req, res) => {
   const db = await getDb();
   const existing = await db.collection("news").find({ _id: new ObjectId(req.params.id) }).toArray();
   const current = existing[0] || {};
   const image1File = req.files?.image1File?.[0] || null;
   const image2File = req.files?.image2File?.[0] || null;
-  const imageUrl = (await saveWebpImage(req, image1File)) || req.body.image || current.image || "";
-  const image2Url = (await saveWebpImage(req, image2File)) || req.body.image2 || current.image2 || "";
+  const videoFile = req.files?.video?.[0] || null;
+  const imageUrl = (await saveWebpImageFromPath(req, image1File)) || req.body.image || current.image || "";
+  const image2Url = (await saveWebpImageFromPath(req, image2File)) || req.body.image2 || current.image2 || "";
+  const requestedVideoUrl = typeof req.body.videoUrl === "string" ? req.body.videoUrl.trim() : "";
+  const removeVideo = req.body.removeVideo === "1";
+  const videoUrl = videoFile
+    ? fileUrl(req, videoFile)
+    : removeVideo
+      ? ""
+      : requestedVideoUrl || current.videoUrl || "";
   if (image1File && current.image && current.image !== imageUrl) {
     await deleteUpload(current.image);
   }
   if (image2File && current.image2 && current.image2 !== image2Url) {
     await deleteUpload(current.image2);
+  }
+  if (videoFile && current.videoUrl && current.videoUrl !== videoUrl) {
+    await deleteUpload(current.videoUrl);
+  }
+  if (!videoFile && removeVideo && current.videoUrl) {
+    await deleteUpload(current.videoUrl);
+  }
+  if (!videoFile && requestedVideoUrl && current.videoUrl && current.videoUrl !== requestedVideoUrl) {
+    await deleteUpload(current.videoUrl);
   }
   const description1 = req.body.description1 || req.body.description || current.description1 || current.description || "";
   const payload = {
@@ -461,6 +488,7 @@ app.put(
     heading2: req.body.heading2 || current.heading2 || "",
     description3: req.body.description3 || current.description3 || "",
     youtubeLink: req.body.youtubeLink || current.youtubeLink || "",
+    videoUrl,
     description4: req.body.description4 || current.description4 || "",
     image: imageUrl,
     imageData: imageUrl ? "" : (req.body.imageData || current.imageData || ""),
@@ -481,6 +509,7 @@ app.delete("/api/news/:id", adminMiddleware, async (req, res) => {
   const current = existing[0] || {};
   if (current.image) await deleteUpload(current.image);
   if (current.image2) await deleteUpload(current.image2);
+  if (current.videoUrl) await deleteUpload(current.videoUrl);
   await db.collection("news").deleteOne({ _id: new ObjectId(req.params.id) });
   return res.json({ message: "News deleted" });
 });
